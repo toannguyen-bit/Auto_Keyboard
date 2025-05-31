@@ -19,7 +19,7 @@ if IS_WINDOWS:
         pass
 
 
-from gui.main_window import AutoTyperWindow
+from gui.main_window import AutoTyperWindow # Import tu file moi (da doi ten class ben trong)
 
 if __name__ == "__main__":
 

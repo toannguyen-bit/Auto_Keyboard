@@ -1,0 +1,22 @@
+# gui/constants.py
+from pynput.keyboard import Key as PynputKey
+
+# Hotkey mac dinh
+DEFAULT_HOTKEY = PynputKey.f9
+DEFAULT_START_RECORD_HOTKEY = PynputKey.f10
+DEFAULT_PLAY_RECORD_HOTKEY = PynputKey.f11
+DEFAULT_RECORD_REPETITIONS = 1 # So lan lap mac dinh cho player
+
+# Cho resize cua so
+RESIZE_MARGIN = 10
+NO_EDGE, TOP_EDGE, BOTTOM_EDGE, LEFT_EDGE, RIGHT_EDGE = 0x0, 0x1, 0x2, 0x4, 0x8
+TOP_LEFT_CORNER, TOP_RIGHT_CORNER = TOP_EDGE | LEFT_EDGE, TOP_EDGE | RIGHT_EDGE
+BOTTOM_LEFT_CORNER, BOTTOM_RIGHT_CORNER = BOTTOM_EDGE | LEFT_EDGE, BOTTOM_EDGE | RIGHT_EDGE
+
+# Loai hotkey dang duoc set
+SETTING_MAIN_HOTKEY = 1
+SETTING_START_RECORD_HOTKEY = 2
+SETTING_PLAY_RECORD_HOTKEY = 3
+
+# Ten file config
+CONFIG_FILE_NAME = "autokeyboard_config.json"
