@@ -73,8 +73,24 @@ class AutoTyperWindow(QMainWindow):
         self.recorded_events = [] # List of (key_obj, key_name_display, action_str_display, delay_ms)
 
         # Hotkey setting state
-        self.single_key_listener_thread = None; self.single_key_listener_worker = None
         self.is_setting_hotkey_type = 0 # 0: none, 1: main, 2: start_rec, 3: play_rec
+
+        # --- Worker duy nhat cho viec bat phim de set hotkey ---
+        self.single_key_listener_thread = QThread(self) # Thread ton tai suot chuong trinh
+        self.single_key_listener_worker = SingleKeyListenerWorker()
+        self.single_key_listener_worker.moveToThread(self.single_key_listener_thread)
+        # Ket noi signal tu worker
+        self.single_key_listener_worker.key_captured_signal.connect(self._handle_new_hotkey_captured_generic)
+        self.single_key_listener_worker.error_signal.connect(self._handle_set_hotkey_error_generic)
+        self.single_key_listener_worker.listener_operation_finished_signal.connect(self._on_single_key_listener_operation_finished_generic)
+        # Bat dau thread
+        self.single_key_listener_thread.started.connect(self.single_key_listener_worker.run)
+        # Quan ly viec delete khi thread ket thuc (luc dong app)
+        self.single_key_listener_thread.finished.connect(self.single_key_listener_worker.deleteLater)
+        self.single_key_listener_thread.finished.connect(self.single_key_listener_thread.deleteLater)
+        self.single_key_listener_thread.start()
+        # --- Ket thuc khoi tao SingleKeyListenerWorker ---
+
 
         self.original_pixmap = QPixmap(self.background_image_path)
         self._is_dragging = False; self._drag_start_pos = QPoint()
@@ -665,38 +681,34 @@ class AutoTyperWindow(QMainWindow):
         if not self.is_typing_active and Translations.get("msgbox_autotyper_error_title") not in self.status_label.text():
              self.status_label.setText(Translations.get("status_stopped_fully", hotkey_name=self.current_hotkey_name))
 
+    # --- Xu ly dat hotkey voi SingleKeyListenerWorker moi ---
     @Slot(int)
     def _prompt_for_new_hotkey_generic(self, hotkey_type_flag):
-        if self.is_typing_active or self.is_recording or self.is_playing_recording: return
-
-        if self.is_setting_hotkey_type == hotkey_type_flag:
-            self._cleanup_thread_worker('single_key_listener_thread', 'single_key_listener_worker')
-            self._finish_set_hotkey_process(hotkey_type_flag, cancelled=True)
+        # Kiem tra cac dieu kien khong cho phep set hotkey
+        if self.is_typing_active or self.is_recording or self.is_playing_recording: 
             return
 
+        # TH1: Nguoi dung nhan lai nut "Dang nhan phim..." (de huy)
+        if self.is_setting_hotkey_type == hotkey_type_flag:
+            if self.single_key_listener_worker:
+                self.single_key_listener_worker.cancel_current_listening_operation()
+            # self._finish_set_hotkey_process se duoc goi thong qua signal listener_operation_finished_signal
+            return
+
+        # TH2: Dang set mot loai hotkey khac
         if self.is_setting_hotkey_type != 0:
             QMessageBox.warning(self, "Cài đặt Hotkey", "Đang trong quá trình cài đặt một hotkey khác.")
             return
-
+        
+        # TH3: Bat dau mot qua trinh set hotkey moi
         self.is_setting_hotkey_type = hotkey_type_flag
         self._update_set_hotkey_button_text(hotkey_type_flag, Translations.get("button_setting_hotkey_wait"))
-        self._set_controls_enabled_for_hotkey_setting(False)
+        self._set_controls_enabled_for_hotkey_setting(False) # Vo hieu hoa cac control khac
 
-        self._cleanup_thread_worker('single_key_listener_thread', 'single_key_listener_worker')
+        if self.single_key_listener_worker:
+            self.single_key_listener_worker.activate_listener_for_hotkey_type(hotkey_type_flag)
+        # Khong can tao thread/worker o day nua vi da co san
 
-        self.single_key_listener_thread = QThread(self)
-        self.single_key_listener_worker = SingleKeyListenerWorker()
-        self.single_key_listener_worker.moveToThread(self.single_key_listener_thread)
-
-        self.single_key_listener_worker.key_captured_signal.connect(lambda key_obj, key_name: self._handle_new_hotkey_captured_generic(hotkey_type_flag, key_obj, key_name))
-        self.single_key_listener_worker.error_signal.connect(lambda err_msg: self._handle_set_hotkey_error_generic(hotkey_type_flag, err_msg))
-
-        self.single_key_listener_thread.started.connect(self.single_key_listener_worker.run)
-        self.single_key_listener_thread.finished.connect(self.single_key_listener_worker.deleteLater)
-        self.single_key_listener_thread.finished.connect(self.single_key_listener_thread.deleteLater)
-        self.single_key_listener_thread.finished.connect(lambda: self._on_single_key_listener_thread_finished_generic(hotkey_type_flag))
-
-        self.single_key_listener_thread.start()
 
     def _update_set_hotkey_button_text(self, hotkey_type, text):
         if hotkey_type == self.SETTING_MAIN_HOTKEY: self.btn_set_hotkey.setText(text)
@@ -704,24 +716,32 @@ class AutoTyperWindow(QMainWindow):
         elif hotkey_type == self.SETTING_PLAY_RECORD_HOTKEY: self.btn_set_play_record_hotkey.setText(text)
 
     def _set_controls_enabled_for_hotkey_setting(self, enabled):
+        # Kiem soat trang thai enable/disable cua cac nut khi dang set hotkey
         self.btn_start.setEnabled(enabled)
         self.entry_text.setEnabled(enabled); self.spin_interval.setEnabled(enabled); self.spin_repetitions.setEnabled(enabled)
-        if self.is_setting_hotkey_type != self.SETTING_MAIN_HOTKEY or enabled : self.btn_set_hotkey.setEnabled(enabled)
+        
+        # Chi enable nut set hotkey cua loai khong phai la loai dang duoc set, hoac khi `enabled` la True (ket thuc set)
+        self.btn_set_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_MAIN_HOTKEY else (not self.is_setting_hotkey_type or enabled))
 
         self.btn_start_record.setEnabled(enabled)
         self.btn_play_record.setEnabled(enabled)
         self.btn_clear_record.setEnabled(enabled)
-        if self.is_setting_hotkey_type != self.SETTING_START_RECORD_HOTKEY or enabled : self.btn_set_start_record_hotkey.setEnabled(enabled)
-        if self.is_setting_hotkey_type != self.SETTING_PLAY_RECORD_HOTKEY or enabled : self.btn_set_play_record_hotkey.setEnabled(enabled)
+        self.btn_set_start_record_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_START_RECORD_HOTKEY else (not self.is_setting_hotkey_type or enabled))
+        self.btn_set_play_record_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_PLAY_RECORD_HOTKEY else (not self.is_setting_hotkey_type or enabled))
 
-        self.custom_title_bar.btn_toggle_mode.setEnabled(enabled) # Nut chuyen che do
+        self.custom_title_bar.btn_toggle_mode.setEnabled(enabled) 
 
-    @Slot(int, object, str)
-    def _handle_new_hotkey_captured_generic(self, hotkey_type, key_obj, key_name):
+    @Slot(int, object, str) # Nhan them hotkey_type tu worker
+    def _handle_new_hotkey_captured_generic(self, hotkey_type_captured, key_obj, key_name):
+        # Xu ly khi worker bat duoc phim thanh cong
+        if self.is_setting_hotkey_type != hotkey_type_captured:
+            # Neu hotkey_type khong khop (co the la mot signal cu), bo qua
+            return
+
         new_hotkey_name_trans = Translations.get("msgbox_hotkey_set_text", new_hotkey_name=key_name)
         QMessageBox.information(self, Translations.get("msgbox_hotkey_set_title"), new_hotkey_name_trans)
 
-        if hotkey_type == self.SETTING_MAIN_HOTKEY:
+        if hotkey_type_captured == self.SETTING_MAIN_HOTKEY:
             self.current_hotkey = key_obj; self.current_hotkey_name = key_name
             self.lbl_current_hotkey_value.setText(key_name)
             if self.view_stack.currentWidget() == self.autotyper_page:
@@ -729,46 +749,57 @@ class AutoTyperWindow(QMainWindow):
             self.btn_start.setText(Translations.get("button_start", hotkey_name=key_name))
             if not self.is_typing_active : self.status_label.setText(Translations.get("status_ready", hotkey_name=key_name))
             self.init_main_hotkey_listener()
-        elif hotkey_type == self.SETTING_START_RECORD_HOTKEY:
+        elif hotkey_type_captured == self.SETTING_START_RECORD_HOTKEY:
             self.current_start_record_hotkey = key_obj; self.current_start_record_hotkey_name = key_name
             self.lbl_current_start_record_hotkey_value.setText(key_name)
             self.btn_start_record.setText(Translations.get("button_start_recording", hotkey_name=key_name))
             if not self.is_recording and not self.is_playing_recording: self.recorder_status_label.setText(Translations.get("status_recorder_idle", hotkey_name=key_name))
             self.init_start_record_hotkey_listener()
-        elif hotkey_type == self.SETTING_PLAY_RECORD_HOTKEY:
+        elif hotkey_type_captured == self.SETTING_PLAY_RECORD_HOTKEY:
             self.current_play_record_hotkey = key_obj; self.current_play_record_hotkey_name = key_name
             self.lbl_current_play_record_hotkey_value.setText(key_name)
             self.btn_play_record.setText(Translations.get("button_play_recording", hotkey_name=key_name))
             if not self.is_playing_recording and not self.is_recording and len(self.recorded_events) > 0: self.recorder_status_label.setText(Translations.get("status_player_ready", hotkey_name=key_name))
             self.init_play_record_hotkey_listener()
+        
+        # Khong goi _finish_set_hotkey_process o day, no se duoc goi boi _on_single_key_listener_operation_finished_generic
 
-        self._finish_set_hotkey_process(hotkey_type)
+    @Slot(int, str) # Nhan them hotkey_type tu worker
+    def _handle_set_hotkey_error_generic(self, hotkey_type_errored, error_message):
+        # Xu ly khi worker bao loi
+        if self.is_setting_hotkey_type != hotkey_type_errored:
+            return # Loi khong lien quan den thao tac hien tai
 
-    @Slot(int, str)
-    def _handle_set_hotkey_error_generic(self, hotkey_type, error_message):
         QMessageBox.critical(self, Translations.get("msgbox_error_set_hotkey_title"), error_message)
-        self._finish_set_hotkey_process(hotkey_type, error=True)
+        # Khong goi _finish_set_hotkey_process o day, no se duoc goi boi _on_single_key_listener_operation_finished_generic
 
-    @Slot(int)
-    def _on_single_key_listener_thread_finished_generic(self, hotkey_type):
-        if self.is_setting_hotkey_type == hotkey_type:
-             self._finish_set_hotkey_process(hotkey_type, cancelled=True)
-        self.single_key_listener_worker = None
-        self.single_key_listener_thread = None
+    @Slot(int) # Nhan hotkey_type tu worker
+    def _on_single_key_listener_operation_finished_generic(self, hotkey_type_finished):
+        # Slot nay duoc goi khi SingleKeyListenerWorker hoan thanh mot thao tac lang nghe
+        # (bat duoc phim, bi huy, hoac gap loi khien pynput listener dung lai).
+        # Quan trong: dam bao rang chi xu ly neu hotkey_type_finished trung voi cai dang set.
+        if self.is_setting_hotkey_type == hotkey_type_finished:
+            self._finish_set_hotkey_process(hotkey_type_finished, cancelled_or_completed=True)
+            # Neu la 'cancelled_or_completed', ham _finish se reset is_setting_hotkey_type ve 0.
 
-    def _finish_set_hotkey_process(self, hotkey_type, error=False, cancelled=False):
+    def _finish_set_hotkey_process(self, hotkey_type_processed, error=False, cancelled_or_completed=False):
+        # error va cancelled_or_completed co the dung de phan biet ly do ket thuc, nhung o day chi can reset UI
+        if self.is_setting_hotkey_type != hotkey_type_processed:
+             # Neu khong con trong che do set hotkey cho type nay (vi du: da duoc reset boi mot signal khac), thi thoat
+            return
+
         original_text_for_button = ""
-        if hotkey_type == self.SETTING_MAIN_HOTKEY: original_text_for_button = Translations.get("button_set_hotkey")
-        elif hotkey_type == self.SETTING_START_RECORD_HOTKEY: original_text_for_button = Translations.get("button_set_start_record_hotkey")
-        elif hotkey_type == self.SETTING_PLAY_RECORD_HOTKEY: original_text_for_button = Translations.get("button_set_play_record_hotkey")
+        if hotkey_type_processed == self.SETTING_MAIN_HOTKEY: 
+            original_text_for_button = Translations.get("button_set_hotkey")
+        elif hotkey_type_processed == self.SETTING_START_RECORD_HOTKEY: 
+            original_text_for_button = Translations.get("button_set_start_record_hotkey")
+        elif hotkey_type_processed == self.SETTING_PLAY_RECORD_HOTKEY: 
+            original_text_for_button = Translations.get("button_set_play_record_hotkey")
 
-        if self.is_setting_hotkey_type == hotkey_type:
-            self.is_setting_hotkey_type = 0
-            self._update_set_hotkey_button_text(hotkey_type, original_text_for_button) # Dung text goc
-            self._set_controls_enabled_for_hotkey_setting(True)
-
-        if self.single_key_listener_thread and self.single_key_listener_thread.isRunning():
-            self.single_key_listener_thread.quit()
+        self.is_setting_hotkey_type = 0 # Quan trong: Reset trang thai
+        self._update_set_hotkey_button_text(hotkey_type_processed, original_text_for_button)
+        self._set_controls_enabled_for_hotkey_setting(True) # Kich hoat lai cac control
+        # Khong can stop/quit thread cua single_key_listener_worker o day
 
 
     @Slot()
@@ -939,9 +970,9 @@ class AutoTyperWindow(QMainWindow):
         )
 
         self.btn_clear_record.setEnabled(is_idle_for_hotkey_setting and len(self.recorded_events) > 0)
-        self.btn_set_start_record_hotkey.setEnabled(is_idle_for_hotkey_setting)
-        self.btn_set_play_record_hotkey.setEnabled(is_idle_for_hotkey_setting)
-        self.custom_title_bar.btn_toggle_mode.setEnabled(is_idle_for_hotkey_setting) # Kich hoat nut chuyen che do
+        self.btn_set_start_record_hotkey.setEnabled(is_idle_for_hotkey_setting if self.is_setting_hotkey_type != self.SETTING_START_RECORD_HOTKEY else True)
+        self.btn_set_play_record_hotkey.setEnabled(is_idle_for_hotkey_setting if self.is_setting_hotkey_type != self.SETTING_PLAY_RECORD_HOTKEY else True)
+        self.custom_title_bar.btn_toggle_mode.setEnabled(is_idle_for_hotkey_setting) 
 
 
     def _update_recorded_events_table(self):
@@ -972,7 +1003,17 @@ class AutoTyperWindow(QMainWindow):
     def closeEvent(self, event):
         self._cleanup_thread_worker('autotyper_thread', 'autotyper_worker')
         self._cleanup_thread_worker('hotkey_listener_thread', 'hotkey_listener_worker')
-        self._cleanup_thread_worker('single_key_listener_thread', 'single_key_listener_worker')
+        
+        # Don dep SingleKeyListenerWorker khi dong ung dung
+        if self.single_key_listener_worker:
+            self.single_key_listener_worker.request_stop_worker_thread() # Bao worker dung vong lap run()
+        if self.single_key_listener_thread:
+            self.single_key_listener_thread.quit() # Yeu cau thread ket thuc
+            if not self.single_key_listener_thread.wait(1500): # Doi thread, tang thoi gian cho pynput
+                # print("Terminating single_key_listener_thread forcefully.")
+                self.single_key_listener_thread.terminate()
+                self.single_key_listener_thread.wait() 
+        # Khong can setattr ve None vi deleteLater da duoc connect voi thread.finished
 
         self._cleanup_thread_worker('recorder_thread', 'recorder_worker')
         self._cleanup_thread_worker('player_thread', 'player_worker')

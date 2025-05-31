@@ -114,48 +114,110 @@ class HotkeyListenerWorker(QObject):
                     pass
         self._pynput_listener = None 
 
-# --- Worker lắng nghe một phím duy nhất (cho cài đặt hotkey) ---
+# --- Worker lắng nghe một phím duy nhất (cho cài đặt hotkey) - DA DUOC UPDATE ---
 class SingleKeyListenerWorker(QObject):
-    key_captured_signal = Signal(object, str) # Pynput key object, key name string
-    error_signal = Signal(str) # Bao loi neu co
-    
+    key_captured_signal = Signal(int, object, str) # hotkey_type, Pynput key object, key name string
+    error_signal = Signal(int, str) # hotkey_type, error_message
+    # Bao hieu listener da ket thuc (bat duoc phim, loi hoac huy) cho hotkey_type tuong ung
+    listener_operation_finished_signal = Signal(int) 
+
     def __init__(self):
         super().__init__()
-        self._listener = None
-        self._stop_requested = False
+        self._pynput_listener_instance = None 
+        self._current_hotkey_type_being_set = 0 # Loai hotkey dang duoc set
+        self._is_actively_listening_for_key = False # Flag dieu khien pynput listener con
+        self._keep_worker_thread_running = True # Flag dieu khien vong lap chinh cua worker (run())
+
+    @Slot(int)
+    def activate_listener_for_hotkey_type(self, hotkey_type_to_set):
+        # Kich hoat worker de bat dau lang nghe cho mot loai hotkey cu the
+        if self._is_actively_listening_for_key: 
+            # Neu dang lang nghe roi, co the la mot loi logic hoac request chong cheo
+            # print(f"SKLW: Warning - activate called for {hotkey_type_to_set} while already listening for {self._current_hotkey_type_being_set}")
+            return 
+        self._current_hotkey_type_being_set = hotkey_type_to_set
+        self._is_actively_listening_for_key = True
+        # print(f"SKLW: Activated for hotkey_type {self._current_hotkey_type_being_set}")
+
+    @Slot()
+    def cancel_current_listening_operation(self):
+        # Huy thao tac lang nghe hien tai (vd: nguoi dung nhan lai nut "Dang nhan phim...")
+        # print(f"SKLW: Cancel listening requested for type {self._current_hotkey_type_being_set}")
+        if self._is_actively_listening_for_key: # Chi huy neu dang active
+            self._is_actively_listening_for_key = False # Quan trong: set flag truoc
+            if self._pynput_listener_instance and self._pynput_listener_instance.is_alive():
+                try:
+                    # print("SKLW: Stopping pynput listener instance due to cancel.")
+                    self._pynput_listener_instance.stop() # Lenh nay se khien join() trong run() ket thuc
+                except Exception: # as e:
+                    # print(f"SKLW: Error stopping pynput listener on cancel: {e}")
+                    pass
+            # Khong emit listener_operation_finished_signal o day,
+            # no se duoc emit tu `finally` block trong `run()` khi pynput_listener_instance.join() ket thuc.
+    
+    def _on_press_capture_key(self, key_pressed):
+        # Callback cho pynput listener, duoc goi khi co phim duoc nhan
+        # print(f"SKLW: Key pressed: {key_pressed}, _is_actively_listening_for_key: {self._is_actively_listening_for_key}")
+        if not self._is_actively_listening_for_key: # Neu khong con active (vi du: da bi cancel)
+            return False # Dung pynput listener
+
+        try:
+            key_name_str = get_pynput_key_display_name(key_pressed)
+            if key_name_str == "Unknown" or key_name_str == "ErrorKey":
+                self.error_signal.emit(self._current_hotkey_type_being_set, Translations.get("msgbox_error_set_hotkey_text", error_message=f"Phím không nhận diện: {key_pressed}"))
+            else:
+                self.key_captured_signal.emit(self._current_hotkey_type_being_set, key_pressed, key_name_str)
+        except Exception as e:
+            self.error_signal.emit(self._current_hotkey_type_being_set, Translations.get("msgbox_error_set_hotkey_text", error_message=str(e)))
+        finally:
+            self._is_actively_listening_for_key = False # Da xu ly xong, danh dau la khong con lang nghe
+            # print("SKLW: _on_press_capture_key finished, _is_actively_listening_for_key set to False. Returning False to stop pynput listener.")
+            return False # Quan trong: tra ve False de pynput listener nay dung lai sau khi bat 1 phim
 
     @Slot()
     def run(self):
-        def on_press_once(key):
-            if self._stop_requested: return False 
-            try:
-                key_name = get_pynput_key_display_name(key)
-                if key_name == "Unknown" or key_name == "ErrorKey":
-                    self.error_signal.emit(Translations.get("msgbox_error_set_hotkey_text", error_message=f"Phím không nhận diện được: {key}"))
-                    return False 
-                
-                self.key_captured_signal.emit(key, key_name)
-            except Exception as e:
-                self.error_signal.emit(Translations.get("msgbox_error_set_hotkey_text", error_message=str(e)))
-            finally:
-                return False 
-
-        try:
-            self._listener = PynputListener(on_press=on_press_once)
-            self._listener.start()
-            self._listener.join() 
-        except Exception as e:
-            self.error_signal.emit(Translations.get("msgbox_error_set_hotkey_text", error_message=f"Không thể khởi tạo bộ lắng nghe: {str(e)}"))
+        # Vong lap chinh cua QThread worker
+        # print("SKLW: Worker run() loop started.")
+        while self._keep_worker_thread_running:
+            if self._is_actively_listening_for_key:
+                # Neu duoc kich hoat, bat dau PynputListener de bat 1 phim
+                # print(f"SKLW: Starting pynput listener for hotkey_type {self._current_hotkey_type_being_set}")
+                active_hotkey_type_at_start = self._current_hotkey_type_being_set # Luu lai de emit dung type
+                try:
+                    self._pynput_listener_instance = PynputListener(on_press=self._on_press_capture_key, suppress=False)
+                    self._pynput_listener_instance.start()
+                    self._pynput_listener_instance.join() # Ham nay se block cho den khi _on_press_capture_key tra ve False hoac listener.stop() duoc goi
+                    # print("SKLW: Pynput listener joined (pynput listener has stopped).")
+                except Exception as e:
+                    # print(f"SKLW: Error starting/running pynput listener: {e}")
+                    if self._is_actively_listening_for_key : # Neu van con active (nghia la loi xay ra truoc khi bat phim/cancel)
+                        self.error_signal.emit(active_hotkey_type_at_start, Translations.get("msgbox_error_set_hotkey_text", error_message=f"Lỗi bộ lắng nghe: {str(e)}"))
+                        self._is_actively_listening_for_key = False # Reset flag
+                finally:
+                    # Du thanh cong, loi hay bi cancel, pynput listener da ket thuc o day
+                    # print(f"SKLW: Pynput listener finished for type {active_hotkey_type_at_start}. Emitting listener_operation_finished_signal.")
+                    self._is_actively_listening_for_key = False # Dam bao da reset
+                    self._pynput_listener_instance = None # Xoa instance
+                    self.listener_operation_finished_signal.emit(active_hotkey_type_at_start) # Bao cho main_window
+            else:
+                # Neu khong active, cho mot chut de khong lam nong CPU
+                QThread.msleep(50) 
+        # print("SKLW: Worker run() loop ended because _keep_worker_thread_running is False.")
 
     @Slot()
-    def request_stop(self): 
-        self._stop_requested = True
-        if self._listener and self._listener.is_alive():
+    def request_stop_worker_thread(self): # Goi khi dong ung dung de ket thuc thread worker nay
+        # print("SKLW: request_stop_worker_thread called.")
+        self._keep_worker_thread_running = False # Dung vong lap run()
+        self._is_actively_listening_for_key = False # Ngung moi hoat dong lang nghe con
+        if self._pynput_listener_instance and self._pynput_listener_instance.is_alive():
             try:
-                self._listener.stop()
-            except Exception:
-                pass 
-        self._listener = None
+                # print("SKLW: Stopping pynput listener instance due to request_stop_worker_thread.")
+                self._pynput_listener_instance.stop()
+            except Exception: # as e:
+                # print(f"SKLW: Error stopping pynput listener on request_stop_worker_thread: {e}")
+                pass
+        self._pynput_listener_instance = None
+
 
 # --- Worker ghi thao tác bàn phím ---
 class KeyboardRecorderWorker(QObject):
