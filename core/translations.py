@@ -13,14 +13,14 @@ class Translations:
 
     translations = {
         "window_title": {
-            LANG_VI: "AutoTyper Poetic",
-            LANG_EN: "AutoTyper Poetic",
-            LANG_JA: "AutoTyper Poetic"
+            LANG_VI: "AutoTyper",
+            LANG_EN: "AutoTyper",
+            LANG_JA: "AutoTyper"
         },
         "title_bar_text": { # hotkey
-            LANG_VI: "AutoTyper Poetic - Hotkey: {hotkey}",
-            LANG_EN: "AutoTyper Poetic - Hotkey: {hotkey}",
-            LANG_JA: "AutoTyper Poetic - ホットキー: {hotkey}"
+            LANG_VI: "AutoTyper - Hotkey: {hotkey}",
+            LANG_EN: "AutoTyper - Hotkey: {hotkey}",
+            LANG_JA: "AutoTyper - ホットキー: {hotkey}"
         },
         "error_loading_background_msg_console": { # path
             LANG_VI: "Loi: Khong the tai anh nen tu '{path}'",

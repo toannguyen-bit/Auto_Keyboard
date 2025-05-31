@@ -5,10 +5,10 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QMessageBox, QFormLayout,
     QSizePolicy, QFrame, QStackedWidget, QGroupBox, QTableWidget, QHeaderView,
-    QTableWidgetItem, QAbstractItemView, QStackedLayout 
+    QTableWidgetItem, QAbstractItemView, QStackedLayout
 )
 from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPoint, QSize, QRect
-from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent, QKeyEvent
+from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent, QKeyEvent, QScreen # them QScreen
 from pynput.keyboard import Key as PynputKey
 
 from core.translations import Translations
@@ -16,10 +16,53 @@ from core.workers import (AutoTyperWorker, HotkeyListenerWorker, SingleKeyListen
                           get_pynput_key_display_name, KeyboardRecorderWorker, RecordedPlayerWorker)
 from .custom_title_bar import CustomTitleBar
 
+# Lop overlay dem nguoc
+class CountdownOverlay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool |
+            Qt.WindowType.X11BypassWindowManagerHint
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0,0,0,0)
+        self.label = QLabel("...")
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 0, 0, 0.75);
+                color: white;
+                font-size: 26px;
+                font-weight: bold;
+                padding: 18px 28px;
+                border-radius: 12px;
+            }
+        """)
+        layout.addWidget(self.label)
+        self.setFixedSize(self.label.sizeHint() + QSize(10,10))
+
+    def setText(self, text):
+        self.label.setText(text)
+        self.adjustSize() # Tu dieu chinh kt
+        self.centerOnScreen()
+
+
+    def centerOnScreen(self):
+        if self.screen():
+            screen_geometry = self.screen().geometry()
+            x = (screen_geometry.width() - self.width()) // 2
+            y = (screen_geometry.height() - self.height()) // 3 # Hien cao hon chut
+            self.move(screen_geometry.x() + x, screen_geometry.y() + y)
+
 class AutoTyperWindow(QMainWindow):
     DEFAULT_HOTKEY = PynputKey.f9
-    DEFAULT_START_RECORD_HOTKEY = PynputKey.f10 
-    DEFAULT_PLAY_RECORD_HOTKEY = PynputKey.f11  
+    DEFAULT_START_RECORD_HOTKEY = PynputKey.f10
+    DEFAULT_PLAY_RECORD_HOTKEY = PynputKey.f11
 
     RESIZE_MARGIN = 10
     NO_EDGE, TOP_EDGE, BOTTOM_EDGE, LEFT_EDGE, RIGHT_EDGE = 0x0, 0x1, 0x2, 0x4, 0x8
@@ -30,7 +73,7 @@ class AutoTyperWindow(QMainWindow):
     SETTING_START_RECORD_HOTKEY = 2
     SETTING_PLAY_RECORD_HOTKEY = 3
 
-    def __init__(self, base_path): 
+    def __init__(self, base_path):
         super().__init__()
         self.base_path = base_path
         self.background_image_filename = "stellar.jpg"
@@ -42,7 +85,7 @@ class AutoTyperWindow(QMainWindow):
         self.DEFAULT_START_RECORD_HOTKEY_NAME = get_pynput_key_display_name(self.DEFAULT_START_RECORD_HOTKEY)
         self.DEFAULT_PLAY_RECORD_HOTKEY_NAME = get_pynput_key_display_name(self.DEFAULT_PLAY_RECORD_HOTKEY)
 
-        self.setMinimumSize(700, 600) 
+        self.setMinimumSize(700, 600)
         self.resize(850, 700)
 
         self.setWindowFlag(Qt.FramelessWindowHint)
@@ -67,11 +110,11 @@ class AutoTyperWindow(QMainWindow):
 
         self.is_recording = False
         self.is_playing_recording = False
-        self.recorded_events = [] 
+        self.recorded_events = []
 
-        self.is_setting_hotkey_type = 0 
+        self.is_setting_hotkey_type = 0
 
-        self.single_key_listener_thread = QThread(self) 
+        self.single_key_listener_thread = QThread(self)
         self.single_key_listener_worker = SingleKeyListenerWorker()
         self.single_key_listener_worker.moveToThread(self.single_key_listener_thread)
         self.single_key_listener_worker.key_captured_signal.connect(self._handle_new_hotkey_captured_generic)
@@ -86,6 +129,8 @@ class AutoTyperWindow(QMainWindow):
         self._is_dragging = False; self._drag_start_pos = QPoint()
         self._is_resizing = False; self._resize_edge = self.NO_EDGE
         self._resize_start_mouse_pos = QPoint(); self._resize_start_window_geometry = QRect()
+
+        self.countdown_overlay = None # Khoi tao overlay
 
         self.init_ui_elements()
         self.apply_styles()
@@ -103,7 +148,7 @@ class AutoTyperWindow(QMainWindow):
 
         self.custom_title_bar = CustomTitleBar(self, current_lang_code=Translations.current_lang)
         self.custom_title_bar.language_changed_signal.connect(self._handle_language_change)
-        self.custom_title_bar.toggle_advanced_mode_signal.connect(self._toggle_view_mode) 
+        self.custom_title_bar.toggle_advanced_mode_signal.connect(self._toggle_view_mode)
         overall_layout.addWidget(self.custom_title_bar)
 
         main_area_widget = QWidget(); main_area_layout = QVBoxLayout(main_area_widget); main_area_layout.setContentsMargins(0,0,0,0); main_area_layout.setSpacing(0)
@@ -120,13 +165,13 @@ class AutoTyperWindow(QMainWindow):
         else: self._update_background_pixmap()
         self.background_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         main_area_stacked_layout.addWidget(self.background_label)
-        main_area_stacked_layout.addWidget(self.view_stack) 
+        main_area_stacked_layout.addWidget(self.view_stack)
 
         main_area_layout.addLayout(main_area_stacked_layout)
         overall_layout.addWidget(main_area_widget)
 
     def _create_autotyper_page_widget(self):
-        page_widget = QWidget(); page_widget.setObjectName("autotyperPageWidget") 
+        page_widget = QWidget(); page_widget.setObjectName("autotyperPageWidget")
         content_layout = QVBoxLayout(page_widget); content_layout.setContentsMargins(30, 15, 30, 20); content_layout.setSpacing(15)
 
         input_frame = QFrame(); input_frame.setObjectName("inputFrame")
@@ -159,12 +204,12 @@ class AutoTyperWindow(QMainWindow):
 
         self.status_label = QLabel(); self.status_label.setObjectName("statusLabel"); self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_layout.addWidget(self.status_label)
-        content_layout.addStretch() 
+        content_layout.addStretch()
         return page_widget
 
     def _create_recorder_page_widget(self):
         page_widget = QWidget(); page_widget.setObjectName("recorderPageWidget")
-        content_layout = QVBoxLayout(page_widget); content_layout.setContentsMargins(20, 15, 20, 20); content_layout.setSpacing(12) 
+        content_layout = QVBoxLayout(page_widget); content_layout.setContentsMargins(20, 15, 20, 20); content_layout.setSpacing(12)
 
         self.record_play_hotkey_group = QGroupBox(); self.record_play_hotkey_group.setObjectName("hotkeyGroup")
         record_play_hotkey_layout = QFormLayout(self.record_play_hotkey_group)
@@ -175,7 +220,7 @@ class AutoTyperWindow(QMainWindow):
         self.lbl_current_start_record_hotkey_value = QLabel(self.current_start_record_hotkey_name)
         self.lbl_current_start_record_hotkey_value.setObjectName("currentHotkeyDisplay")
         self.btn_set_start_record_hotkey = QPushButton()
-        self.btn_set_start_record_hotkey.setObjectName("setHotkeyButtonSmall") 
+        self.btn_set_start_record_hotkey.setObjectName("setHotkeyButtonSmall")
         self.btn_set_start_record_hotkey.clicked.connect(lambda: self._prompt_for_new_hotkey_generic(self.SETTING_START_RECORD_HOTKEY))
         start_rec_hotkey_val_layout.addWidget(self.lbl_current_start_record_hotkey_value)
         start_rec_hotkey_val_layout.addWidget(self.btn_set_start_record_hotkey)
@@ -199,9 +244,9 @@ class AutoTyperWindow(QMainWindow):
         self.recorded_events_table.setColumnCount(3)
         self.recorded_events_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.recorded_events_table.verticalHeader().setVisible(False)
-        self.recorded_events_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers) 
+        self.recorded_events_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.recorded_events_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        content_layout.addWidget(self.recorded_events_table, 1) 
+        content_layout.addWidget(self.recorded_events_table, 1)
 
         recorder_button_layout = QHBoxLayout()
         self.btn_start_record = QPushButton(); self.btn_start_record.setObjectName("recordButton"); self.btn_start_record.clicked.connect(self.toggle_recording_process)
@@ -219,22 +264,22 @@ class AutoTyperWindow(QMainWindow):
         return page_widget
 
     @Slot(bool)
-    def _toggle_view_mode(self, to_advanced_mode): 
+    def _toggle_view_mode(self, to_advanced_mode):
         if to_advanced_mode:
             self.view_stack.setCurrentWidget(self.recorder_page)
-            self.custom_title_bar.setTitle(Translations.get("label_record_play_group")) 
+            self.custom_title_bar.setTitle(Translations.get("label_record_play_group"))
         else:
             self.view_stack.setCurrentWidget(self.autotyper_page)
             self.custom_title_bar.setTitle(Translations.get("title_bar_text", hotkey=self.current_hotkey_name))
-        self._retranslate_ui() 
+        self._retranslate_ui()
 
     def _retranslate_ui(self):
         current_widget = self.view_stack.currentWidget()
         if current_widget == self.autotyper_page:
-            self.setWindowTitle(Translations.get("window_title")) 
+            self.setWindowTitle(Translations.get("window_title"))
             self.custom_title_bar.setTitle(Translations.get("title_bar_text", hotkey=self.current_hotkey_name))
         elif current_widget == self.recorder_page:
-            self.setWindowTitle(Translations.get("label_record_play_group")) 
+            self.setWindowTitle(Translations.get("label_record_play_group"))
             self.custom_title_bar.setTitle(Translations.get("label_record_play_group"))
         self.custom_title_bar.retranslate_ui_texts()
 
@@ -289,12 +334,12 @@ class AutoTyperWindow(QMainWindow):
         if self.is_setting_hotkey_type == self.SETTING_START_RECORD_HOTKEY:
             self.btn_set_start_record_hotkey.setText(Translations.get("button_setting_hotkey_wait"))
         else:
-            self.btn_set_start_record_hotkey.setText(Translations.get("button_set_start_record_hotkey")) 
+            self.btn_set_start_record_hotkey.setText(Translations.get("button_set_start_record_hotkey"))
 
         if self.is_setting_hotkey_type == self.SETTING_PLAY_RECORD_HOTKEY:
             self.btn_set_play_record_hotkey.setText(Translations.get("button_setting_hotkey_wait"))
         else:
-            self.btn_set_play_record_hotkey.setText(Translations.get("button_set_play_record_hotkey")) 
+            self.btn_set_play_record_hotkey.setText(Translations.get("button_set_play_record_hotkey"))
 
         current_recorder_status = self.recorder_status_label.text()
         recorder_idle_prefix = Translations.get("status_recorder_idle", hotkey_name="X", lang=Translations.LANG_EN).split("'")[0]
@@ -309,7 +354,7 @@ class AutoTyperWindow(QMainWindow):
         else:
             self.btn_start_record.setText(Translations.get("button_start_recording", hotkey_name=self.current_start_record_hotkey_name))
             if not current_recorder_status or recorder_stopped_prefix in current_recorder_status or recorder_idle_prefix in current_recorder_status :
-                if not self.is_playing_recording and player_error_prefix not in current_recorder_status : # Chi set neu khong phai loi player
+                if not self.is_playing_recording and player_error_prefix not in current_recorder_status : # Chi set neu ko phai loi player
                     self.recorder_status_label.setText(Translations.get("status_recorder_idle", hotkey_name=self.current_start_record_hotkey_name))
 
         if self.is_playing_recording:
@@ -479,7 +524,7 @@ class AutoTyperWindow(QMainWindow):
             interactive_widgets_on_title = self.custom_title_bar.findChildren(QPushButton) + \
                                            [self.custom_title_bar.lang_combo, self.custom_title_bar.btn_toggle_mode]
             for child_widget in interactive_widgets_on_title:
-                if child_widget.isVisible() and child_widget.geometry().contains(self.custom_title_bar.mapFromGlobal(global_pos)): 
+                if child_widget.isVisible() and child_widget.geometry().contains(self.custom_title_bar.mapFromGlobal(global_pos)):
                     is_on_interactive_title_widget = True; break
             if self.custom_title_bar.geometry().contains(local_pos) and not is_on_interactive_title_widget:
                 self._is_dragging = True; self._is_resizing = False
@@ -529,19 +574,12 @@ class AutoTyperWindow(QMainWindow):
 
         if worker:
             if hasattr(worker, 'request_stop'): worker.request_stop()
-        
-        # Set worker to None before quitting/terminating thread to avoid race condition on worker.deleteLater()
-        # if worker: setattr(self, worker_attr, None) 
-        # No, let deleteLater handle it. Just ensure worker is not accessed after this.
 
         if thread and thread.isRunning():
             thread.quit()
-            if not thread.wait(1000): 
+            if not thread.wait(1000):
                 thread.terminate()
                 thread.wait()
-        
-        # Worker and thread are set to None in their respective _reset or _handle_thread_finished methods
-        # or after deleteLater is successfully scheduled and they are truly done.
 
     def init_main_hotkey_listener(self):
         self._cleanup_thread_worker('hotkey_listener_thread', 'hotkey_listener_worker')
@@ -552,8 +590,7 @@ class AutoTyperWindow(QMainWindow):
         self.hotkey_listener_worker.moveToThread(self.hotkey_listener_thread)
         self.hotkey_listener_worker.hotkey_pressed_signal.connect(self.toggle_typing_process)
         self.hotkey_listener_thread.started.connect(self.hotkey_listener_worker.run)
-        # Make sure worker is deleted when thread finishes
-        self.hotkey_listener_thread.finished.connect(self.hotkey_listener_worker.deleteLater) 
+        self.hotkey_listener_thread.finished.connect(self.hotkey_listener_worker.deleteLater)
         self.hotkey_listener_thread.finished.connect(self.hotkey_listener_thread.deleteLater)
         self.hotkey_listener_thread.start()
 
@@ -594,7 +631,7 @@ class AutoTyperWindow(QMainWindow):
         text = self.entry_text.text(); interval = self.spin_interval.value(); repetitions = self.spin_repetitions.value()
         if not text: QMessageBox.warning(self, Translations.get("msgbox_missing_info_title"), Translations.get("worker_empty_text_error")); return
 
-        self._cleanup_thread_worker('autotyper_thread', 'autotyper_worker') # Don dep instance cu neu co
+        self._cleanup_thread_worker('autotyper_thread', 'autotyper_worker')
 
         self.is_typing_active = True
         self._update_autotyper_controls_state()
@@ -604,18 +641,17 @@ class AutoTyperWindow(QMainWindow):
         self.autotyper_worker = AutoTyperWorker(text, interval, repetitions, self.current_hotkey_name)
         self.autotyper_worker.moveToThread(self.autotyper_thread)
         self.autotyper_worker.update_status_signal.connect(self.update_status_label)
-        self.autotyper_worker.error_signal.connect(self.show_error_message_box) # Doi ten slot
+        self.autotyper_worker.error_signal.connect(self.show_error_message_box)
         self.autotyper_worker.typing_finished_signal.connect(self._handle_autotyper_worker_finished)
         self.autotyper_thread.started.connect(self.autotyper_worker.run)
-        self.autotyper_thread.finished.connect(self.autotyper_worker.deleteLater) # Quan trong
+        self.autotyper_thread.finished.connect(self.autotyper_worker.deleteLater)
         self.autotyper_thread.finished.connect(self._handle_autotyper_thread_finished)
         self.autotyper_thread.start()
 
     @Slot()
     def stop_typing_process(self):
-        if not self.is_typing_active: self._update_autotyper_controls_state(); return # Neu khong active thi chi update UI
+        if not self.is_typing_active: self._update_autotyper_controls_state(); return
         if self.autotyper_worker: self.autotyper_worker.request_stop()
-        # Khong reset state o day, de _handle_autotyper_worker_finished lam sau khi worker thuc su dung
         self.btn_stop.setEnabled(False); self.status_label.setText(Translations.get("status_requesting_stop"))
 
     def _update_autotyper_controls_state(self):
@@ -632,54 +668,42 @@ class AutoTyperWindow(QMainWindow):
     def update_status_label(self, message): self.status_label.setText(message)
 
     @Slot(str)
-    def show_error_message_box(self, message): # Slot cho AutoTyper error
+    def show_error_message_box(self, message):
         QMessageBox.critical(self, Translations.get("msgbox_autotyper_error_title"), message)
         self._reset_typing_state_and_ui(error_occurred=True)
 
     def _reset_typing_state_and_ui(self, error_occurred=False):
-        # Kiem tra neu da reset roi thi thoat
         if not self.is_typing_active and self.autotyper_worker is None and self.autotyper_thread is None:
-            # Co the status label can cap nhat lai neu la error
              if error_occurred and Translations.get("msgbox_autotyper_error_title") not in self.status_label.text() and " (Lỗi)" not in self.status_label.text():
                 self.status_label.setText(Translations.get("status_stopped", hotkey_name=self.current_hotkey_name) + " (Lỗi)")
              return
 
         self.is_typing_active = False
-        self._update_autotyper_controls_state() # Cap nhat enable/disable cua cac nut
+        self._update_autotyper_controls_state()
 
         if error_occurred:
             self.status_label.setText(Translations.get("status_stopped", hotkey_name=self.current_hotkey_name) + " (Lỗi)")
         else:
-            # Neu khong phai loi, va truoc do khong phai la trang thai loi hoac dang yeu cau dung
             error_suffix = " (Lỗi)"
             requesting_stop_text = Translations.get("status_requesting_stop")
             current_text = self.status_label.text()
             if not current_text.endswith(error_suffix) and current_text != requesting_stop_text:
                  self.status_label.setText(Translations.get("status_stopped", hotkey_name=self.current_hotkey_name))
-        
-        # Don dep worker. Thread se tu deleteLater worker khi thread finished.
-        # Khong can set self.autotyper_worker = None o day vi thread se delete no.
-        # Chi can dam bao worker.request_stop() da duoc goi neu can.
-        # Neu worker da emit finished/error, no se tu dung.
-        
-        # Quit thread neu no van con chay (hiem khi xay ra neu worker da finished/errored)
+
         if self.autotyper_thread and self.autotyper_thread.isRunning():
-            self.autotyper_thread.quit() 
-            # Worker se duoc deleteLater boi finished signal cua thread
+            self.autotyper_thread.quit()
 
     @Slot()
-    def _handle_autotyper_worker_finished(self): 
+    def _handle_autotyper_worker_finished(self):
         self._reset_typing_state_and_ui(error_occurred=False)
-    
+
     @Slot()
     def _handle_autotyper_thread_finished(self):
-        # Thread da ket thuc, worker da duoc deleteLater
-        self.autotyper_worker = None # Gio moi an toan set None
-        if self.autotyper_thread: # Ktra truoc khi deleteLater
-            self.autotyper_thread.deleteLater() # Len lich xoa thread
+        self.autotyper_worker = None
+        if self.autotyper_thread:
+            self.autotyper_thread.deleteLater()
             self.autotyper_thread = None
 
-        # Cap nhat status label lan cuoi neu can
         current_text = self.status_label.text()
         error_suffix = " (Lỗi)"
         if not self.is_typing_active and not current_text.endswith(error_suffix) and Translations.get("status_requesting_stop") not in current_text:
@@ -688,7 +712,7 @@ class AutoTyperWindow(QMainWindow):
 
     @Slot(int)
     def _prompt_for_new_hotkey_generic(self, hotkey_type_flag):
-        if self.is_typing_active or self.is_recording or self.is_playing_recording: 
+        if self.is_typing_active or self.is_recording or self.is_playing_recording:
             return
 
         if self.is_setting_hotkey_type == hotkey_type_flag:
@@ -699,10 +723,10 @@ class AutoTyperWindow(QMainWindow):
         if self.is_setting_hotkey_type != 0:
             QMessageBox.warning(self, "Cài đặt Hotkey", "Đang trong quá trình cài đặt một hotkey khác.")
             return
-        
+
         self.is_setting_hotkey_type = hotkey_type_flag
         self._update_set_hotkey_button_text(hotkey_type_flag, Translations.get("button_setting_hotkey_wait"))
-        self._set_controls_enabled_for_hotkey_setting(False) 
+        self._set_controls_enabled_for_hotkey_setting(False)
 
         if self.single_key_listener_worker:
             self.single_key_listener_worker.activate_listener_for_hotkey_type(hotkey_type_flag)
@@ -721,9 +745,9 @@ class AutoTyperWindow(QMainWindow):
         self.btn_clear_record.setEnabled(enabled)
         self.btn_set_start_record_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_START_RECORD_HOTKEY else (not self.is_setting_hotkey_type or enabled))
         self.btn_set_play_record_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_PLAY_RECORD_HOTKEY else (not self.is_setting_hotkey_type or enabled))
-        self.custom_title_bar.btn_toggle_mode.setEnabled(enabled) 
+        self.custom_title_bar.btn_toggle_mode.setEnabled(enabled)
 
-    @Slot(int, object, str) 
+    @Slot(int, object, str)
     def _handle_new_hotkey_captured_generic(self, hotkey_type_captured, key_obj, key_name):
         if self.is_setting_hotkey_type != hotkey_type_captured:
             return
@@ -751,14 +775,14 @@ class AutoTyperWindow(QMainWindow):
             self.btn_play_record.setText(Translations.get("button_play_recording", hotkey_name=key_name))
             if not self.is_playing_recording and not self.is_recording and len(self.recorded_events) > 0: self.recorder_status_label.setText(Translations.get("status_player_ready", hotkey_name=key_name))
             self.init_play_record_hotkey_listener()
-        
-    @Slot(int, str) 
+
+    @Slot(int, str)
     def _handle_set_hotkey_error_generic(self, hotkey_type_errored, error_message):
         if self.is_setting_hotkey_type != hotkey_type_errored:
-            return 
+            return
         QMessageBox.critical(self, Translations.get("msgbox_error_set_hotkey_title"), error_message)
-        
-    @Slot(int) 
+
+    @Slot(int)
     def _on_single_key_listener_operation_finished_generic(self, hotkey_type_finished):
         if self.is_setting_hotkey_type == hotkey_type_finished:
             self._finish_set_hotkey_process(hotkey_type_finished, cancelled_or_completed=True)
@@ -768,22 +792,22 @@ class AutoTyperWindow(QMainWindow):
             return
 
         original_text_for_button = ""
-        if hotkey_type_processed == self.SETTING_MAIN_HOTKEY: 
+        if hotkey_type_processed == self.SETTING_MAIN_HOTKEY:
             original_text_for_button = Translations.get("button_set_hotkey")
-        elif hotkey_type_processed == self.SETTING_START_RECORD_HOTKEY: 
+        elif hotkey_type_processed == self.SETTING_START_RECORD_HOTKEY:
             original_text_for_button = Translations.get("button_set_start_record_hotkey")
-        elif hotkey_type_processed == self.SETTING_PLAY_RECORD_HOTKEY: 
+        elif hotkey_type_processed == self.SETTING_PLAY_RECORD_HOTKEY:
             original_text_for_button = Translations.get("button_set_play_record_hotkey")
 
-        self.is_setting_hotkey_type = 0 
+        self.is_setting_hotkey_type = 0
         self._update_set_hotkey_button_text(hotkey_type_processed, original_text_for_button)
-        self._set_controls_enabled_for_hotkey_setting(True) 
+        self._set_controls_enabled_for_hotkey_setting(True)
 
     @Slot()
     def toggle_recording_process(self):
         if self.is_setting_hotkey_type != 0 or self.view_stack.currentWidget() != self.recorder_page: return
         if self.is_playing_recording:
-            QMessageBox.information(self, "Thông báo", "Đã phát xong.")
+            QMessageBox.information(self, "Thông báo", "Đang phát, không thể ghi.") # Sua thong bao
             return
 
         if self.is_recording:
@@ -806,17 +830,16 @@ class AutoTyperWindow(QMainWindow):
 
         self.recorder_worker.key_event_recorded.connect(self._add_recorded_event)
         self.recorder_worker.recording_status_update.connect(self._update_recorder_status_label)
-        self.recorder_worker.recording_finished.connect(self._handle_recorder_worker_finished) # Goi khi worker xong
+        self.recorder_worker.recording_finished.connect(self._handle_recorder_worker_finished)
 
         self.recorder_thread.started.connect(self.recorder_worker.run)
-        self.recorder_thread.finished.connect(self.recorder_worker.deleteLater) # Quan trong
-        self.recorder_thread.finished.connect(self._handle_recorder_thread_finished) # Goi khi thread xong
+        self.recorder_thread.finished.connect(self.recorder_worker.deleteLater)
+        self.recorder_thread.finished.connect(self._handle_recorder_thread_finished)
         self.recorder_thread.start()
 
     def _stop_recording(self):
         if not self.is_recording or not self.recorder_worker: return
         self.recorder_worker.request_stop()
-        # Trang thai se duoc cap nhat trong _handle_recorder_worker_finished
 
     @Slot(object, str, str, float)
     def _add_recorded_event(self, key_obj, key_name_display, action_str_display, delay_ms):
@@ -827,43 +850,73 @@ class AutoTyperWindow(QMainWindow):
     def _update_recorder_status_label(self, status):
         self.recorder_status_label.setText(status)
 
-    def _reset_recorder_state_and_ui(self): # Ham moi cho recorder
+        # Xu ly overlay dem nguoc
+        is_countdown_status = False
+        current_lang_countdown_prefix = Translations.get("status_recorder_countdown", seconds="X").split("X")[0].strip()
+        current_lang_recording_prefix = Translations.get("status_recorder_recording", hotkey_name="X").split("X")[0].strip()
+
+        # Kiem tra status co phai la dem nguoc (chi chua so va "...")
+        if status.startswith(current_lang_countdown_prefix) and "..." in status:
+            is_countdown_status = True
+
+        if is_countdown_status:
+            if not self.countdown_overlay:
+                self.countdown_overlay = CountdownOverlay()
+            # Chi lay phan so va "..." de hien thi ngan gon
+            try:
+                countdown_text = status.split(Translations.get("status_recorder_countdown", seconds="").split(":")[0] + ":")[1].strip()
+                self.countdown_overlay.setText(countdown_text)
+            except IndexError:
+                self.countdown_overlay.setText(status) # fallback
+
+            if not self.countdown_overlay.isVisible():
+                 self.countdown_overlay.show()
+        else: # Neu ko phai dem nguoc (vd: "Recording...", "Stopped", "Idle")
+            if self.countdown_overlay and self.countdown_overlay.isVisible():
+                self.countdown_overlay.hide()
+
+
+    def _reset_recorder_state_and_ui(self):
         if not self.is_recording and self.recorder_worker is None and self.recorder_thread is None:
             return
 
-        was_recording = self.is_recording # Luu trang thai de cap nhat status label chinh xac
+        was_recording = self.is_recording
         self.is_recording = False
         self._update_recorder_controls_state()
-        
-        if was_recording: # Neu thuc su vua dung ghi
+
+        if was_recording:
             self.recorder_status_label.setText(Translations.get("status_recorder_stopped", hotkey_name=self.current_start_record_hotkey_name))
-        
+
         if self.recorder_thread and self.recorder_thread.isRunning():
             self.recorder_thread.quit()
 
+        if self.countdown_overlay and self.countdown_overlay.isVisible(): # An overlay
+            self.countdown_overlay.hide()
+
     @Slot()
-    def _handle_recorder_worker_finished(self): # Worker da xong (binh thuong hoac stop)
+    def _handle_recorder_worker_finished(self):
         self._reset_recorder_state_and_ui()
 
     @Slot()
-    def _handle_recorder_thread_finished(self): # Thread da xong
-        self.recorder_worker = None 
+    def _handle_recorder_thread_finished(self):
+        self.recorder_worker = None
         if self.recorder_thread:
             self.recorder_thread.deleteLater()
             self.recorder_thread = None
-        # Neu khong con ghi, khong con phat, co the cap nhat status
         if not self.is_recording and not self.is_playing_recording:
             if len(self.recorded_events) > 0:
                  self.recorder_status_label.setText(Translations.get("status_player_ready", hotkey_name=self.current_play_record_hotkey_name))
             else:
                  self.recorder_status_label.setText(Translations.get("status_recorder_idle", hotkey_name=self.current_start_record_hotkey_name))
+        if self.countdown_overlay and self.countdown_overlay.isVisible(): # An overlay khi thread xong
+            self.countdown_overlay.hide()
 
 
     @Slot()
     def toggle_playing_process(self):
         if self.is_setting_hotkey_type != 0 or self.view_stack.currentWidget() != self.recorder_page: return
         if self.is_recording:
-            QMessageBox.information(self, "Thông báo", "Đang ghi thao tác, không thể phát.")
+            QMessageBox.information(self, "Thông báo", "Đang ghi, không thể phát.") # Sua thong bao
             return
 
         if self.is_playing_recording:
@@ -879,7 +932,6 @@ class AutoTyperWindow(QMainWindow):
 
         self.is_playing_recording = True
         self._update_recorder_controls_state()
-        # Status se duoc cap nhat boi worker (status_player_playing)
 
         self._cleanup_thread_worker('player_thread', 'player_worker')
         self.player_thread = QThread(self)
@@ -907,14 +959,13 @@ class AutoTyperWindow(QMainWindow):
         self.player_worker.playing_finished_signal.connect(self._handle_player_worker_finished)
 
         self.player_thread.started.connect(self.player_worker.run)
-        self.player_thread.finished.connect(self.player_worker.deleteLater) # Quan trong
+        self.player_thread.finished.connect(self.player_worker.deleteLater)
         self.player_thread.finished.connect(self._handle_player_thread_finished)
         self.player_thread.start()
 
     def _stop_playing_recording(self):
         if not self.is_playing_recording or not self.player_worker: return
         self.player_worker.request_stop()
-        # Trang thai se duoc cap nhat trong _handle_player_worker_finished/_handle_player_error
 
     def _reset_player_state_and_ui(self, error_occurred=False):
         if not self.is_playing_recording and self.player_worker is None and self.player_thread is None:
@@ -923,15 +974,14 @@ class AutoTyperWindow(QMainWindow):
             return
 
         self.is_playing_recording = False
-        self._update_recorder_controls_state() 
+        self._update_recorder_controls_state()
 
         if error_occurred:
             self.recorder_status_label.setText(Translations.get("status_player_error", hotkey_name=self.current_play_record_hotkey_name))
         else:
-            # Neu khong phai loi, va truoc do khong phai la trang thai loi
             if Translations.get("status_player_error", hotkey_name="X", lang=Translations.LANG_EN).split("!")[0] not in self.recorder_status_label.text():
                 self.recorder_status_label.setText(Translations.get("status_player_stopped", hotkey_name=self.current_play_record_hotkey_name))
-        
+
         if self.player_thread and self.player_thread.isRunning():
             self.player_thread.quit()
 
@@ -946,22 +996,20 @@ class AutoTyperWindow(QMainWindow):
 
     @Slot()
     def _handle_player_thread_finished(self):
-        self.player_worker = None 
+        self.player_worker = None
         if self.player_thread:
             self.player_thread.deleteLater()
             self.player_thread = None
-        
-        # Cap nhat status label lan cuoi neu can, sau khi thread da xong
+
         current_text = self.recorder_status_label.text()
         error_prefix = Translations.get("status_player_error", hotkey_name="X", lang=Translations.LANG_EN).split("!")[0]
-        
-        if not self.is_playing_recording and not self.is_recording: # Neu ca hai deu da dung
-            if error_prefix not in current_text: # Neu khong phai la loi
+
+        if not self.is_playing_recording and not self.is_recording:
+            if error_prefix not in current_text:
                 if len(self.recorded_events) > 0:
                     self.recorder_status_label.setText(Translations.get("status_player_ready", hotkey_name=self.current_play_record_hotkey_name))
                 else:
                     self.recorder_status_label.setText(Translations.get("status_recorder_idle", hotkey_name=self.current_start_record_hotkey_name))
-            # Neu la loi, status da duoc set boi _reset_player_state_and_ui
 
     def _update_recorder_controls_state(self):
         is_idle_for_hotkey_setting = not self.is_recording and not self.is_playing_recording and self.is_setting_hotkey_type == 0
@@ -981,7 +1029,7 @@ class AutoTyperWindow(QMainWindow):
         self.btn_clear_record.setEnabled(is_idle_for_hotkey_setting and len(self.recorded_events) > 0)
         self.btn_set_start_record_hotkey.setEnabled(is_idle_for_hotkey_setting if self.is_setting_hotkey_type != self.SETTING_START_RECORD_HOTKEY else True)
         self.btn_set_play_record_hotkey.setEnabled(is_idle_for_hotkey_setting if self.is_setting_hotkey_type != self.SETTING_PLAY_RECORD_HOTKEY else True)
-        self.custom_title_bar.btn_toggle_mode.setEnabled(is_idle_for_hotkey_setting) 
+        self.custom_title_bar.btn_toggle_mode.setEnabled(is_idle_for_hotkey_setting)
 
     def _update_recorded_events_table(self):
         self.recorded_events_table.setRowCount(0)
@@ -1005,25 +1053,24 @@ class AutoTyperWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.recorded_events.clear()
             self._update_recorded_events_table()
-            # Cap nhat status label sau khi xoa
-            if not self.is_recording and not self.is_playing_recording: # Chi cap nhat neu dang idle
+            if not self.is_recording and not self.is_playing_recording:
                 self.recorder_status_label.setText(Translations.get("status_recorder_idle", hotkey_name=self.current_start_record_hotkey_name))
 
 
     def closeEvent(self, event):
         self._cleanup_thread_worker('autotyper_thread', 'autotyper_worker')
-        self.autotyper_worker = None; self.autotyper_thread = None # Dam bao la None
+        self.autotyper_worker = None; self.autotyper_thread = None
 
         self._cleanup_thread_worker('hotkey_listener_thread', 'hotkey_listener_worker')
         self.hotkey_listener_worker = None; self.hotkey_listener_thread = None
-        
+
         if self.single_key_listener_worker:
-            self.single_key_listener_worker.request_stop_worker_thread() 
+            self.single_key_listener_worker.request_stop_worker_thread()
         if self.single_key_listener_thread:
-            self.single_key_listener_thread.quit() 
-            if not self.single_key_listener_thread.wait(1500): 
+            self.single_key_listener_thread.quit()
+            if not self.single_key_listener_thread.wait(1500):
                 self.single_key_listener_thread.terminate()
-                self.single_key_listener_thread.wait() 
+                self.single_key_listener_thread.wait()
         self.single_key_listener_worker = None; self.single_key_listener_thread = None
 
         self._cleanup_thread_worker('recorder_thread', 'recorder_worker')
@@ -1037,4 +1084,9 @@ class AutoTyperWindow(QMainWindow):
 
         self._cleanup_thread_worker('play_record_hotkey_listener_thread', 'play_record_hotkey_listener_worker')
         self.play_record_hotkey_listener_worker = None; self.play_record_hotkey_listener_thread = None
+
+        if self.countdown_overlay: # Dong overlay khi thoat
+            self.countdown_overlay.close()
+            self.countdown_overlay = None
+
         event.accept()
