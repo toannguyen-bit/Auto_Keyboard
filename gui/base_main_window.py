@@ -6,15 +6,15 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QMessageBox,
     QSizePolicy, QStackedWidget, QStackedLayout
 )
-from PySide6.QtCore import Qt, QThread, Slot, QPoint, QSize, QRect
+from PySide6.QtCore import Qt, QThread, Slot, QPoint, QSize, QRect, QPropertyAnimation, QEasingCurve, QAbstractAnimation
 from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent
 
-from pynput.keyboard import Key as PynputKey, KeyCode 
+from pynput.keyboard import Key as PynputKey, KeyCode
 
 from core.translations import Translations
 from core.workers import SingleKeyListenerWorker, get_pynput_key_display_name
 from .custom_title_bar import CustomTitleBar
-from .countdown_overlay import CountdownOverlay 
+from .countdown_overlay import CountdownOverlay
 from .constants import (
     RESIZE_MARGIN, NO_EDGE, TOP_EDGE, BOTTOM_EDGE, LEFT_EDGE, RIGHT_EDGE,
     TOP_LEFT_CORNER, TOP_RIGHT_CORNER, BOTTOM_LEFT_CORNER, BOTTOM_RIGHT_CORNER,
@@ -36,18 +36,17 @@ class BaseMainWindow(QMainWindow):
 
         Translations.set_language(Translations.LANG_VI) # Mac dinh, se bi ghi de boi config
 
-        self.setMinimumSize(700, 600) # Kich thuoc toi thieu
-        self.resize(850, 700) # Kich thuoc mac dinh
+        self.setMinimumSize(700, 600) # Kthuoc min
+        self.resize(850, 700) # Kthuoc default
 
         self.setWindowFlag(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
-        self.is_setting_hotkey_type = 0 # Loai hotkey dang duoc set (0 la ko set)
+        self.is_setting_hotkey_type = 0 # Loai hotkey dang set
 
         self.single_key_listener_thread = QThread(self)
         self.single_key_listener_worker = SingleKeyListenerWorker()
         self.single_key_listener_worker.moveToThread(self.single_key_listener_thread)
-        # Cac signal cua worker nay se duoc connect o lop con (AutoTyperWindow)
         self.single_key_listener_thread.started.connect(self.single_key_listener_worker.run)
         self.single_key_listener_thread.finished.connect(self.single_key_listener_worker.deleteLater)
         self.single_key_listener_thread.finished.connect(self.single_key_listener_thread.deleteLater)
@@ -58,13 +57,19 @@ class BaseMainWindow(QMainWindow):
         self._is_resizing = False; self._resize_edge = NO_EDGE
         self._resize_start_mouse_pos = QPoint(); self._resize_start_window_geometry = QRect()
 
-        self.countdown_overlay = None # Khoi tao overlay
+        self.countdown_overlay = None
+
+        # Animations
+        self._first_show_animation_done = False # Co cho anim mo
+        self._animation_is_closing_flag = False # Co cho anim dong
+        self.opacity_animation_open = None
+        self.opacity_animation_close = None
 
         self.init_base_ui_elements()
         self.apply_styles()
 
         self._retranslate_base_ui()
-        self.setMouseTracking(True) # Cho resize/drag
+        self.setMouseTracking(True)
 
     def init_base_ui_elements(self):
         self.main_container_widget = QWidget(); self.main_container_widget.setObjectName("mainContainerWidget")
@@ -78,7 +83,7 @@ class BaseMainWindow(QMainWindow):
 
         main_area_widget = QWidget(); main_area_layout = QVBoxLayout(main_area_widget); main_area_layout.setContentsMargins(0,0,0,0); main_area_layout.setSpacing(0)
 
-        self.view_stack = QStackedWidget() # Cac page se duoc them vao day
+        self.view_stack = QStackedWidget()
 
         main_area_stacked_layout = QStackedLayout(); main_area_stacked_layout.setStackingMode(QStackedLayout.StackingMode.StackAll)
         self.background_label = QLabel(); self.background_label.setObjectName("backgroundLabel")
@@ -92,14 +97,13 @@ class BaseMainWindow(QMainWindow):
         overall_layout.addWidget(main_area_widget)
 
     @Slot(bool)
-    def _toggle_view_mode_slot(self, to_advanced_mode): 
+    def _toggle_view_mode_slot(self, to_advanced_mode):
         self.toggle_view_mode(to_advanced_mode, from_load=False)
 
     def toggle_view_mode(self, to_advanced_mode, from_load=False):
-        # Ham nay se duoc override o lop con de chuyen view_stack.currentWidget()
         self.custom_title_bar.set_mode_button_state(to_advanced_mode)
         if not from_load:
-            self._retranslate_base_ui() 
+            self._retranslate_base_ui()
 
     def _retranslate_base_ui(self):
         self.custom_title_bar.retranslate_ui_texts()
@@ -108,12 +112,10 @@ class BaseMainWindow(QMainWindow):
                 print(Translations.get("error_loading_background_msg_console", path=self.background_image_path))
                 self._bg_error_logged = Translations.current_lang
             self.background_label.setText(Translations.get("error_loading_background_ui"))
-        # Cac page se tu retranslate UI cua chung
 
     @Slot(str)
     def _handle_language_change(self, lang_code):
         Translations.set_language(lang_code)
-        # Lop con (AutoTyperWindow) se override ham nay de goi retranslate cho cac page
         self._retranslate_base_ui()
         self.apply_styles()
 
@@ -151,11 +153,8 @@ class BaseMainWindow(QMainWindow):
             QWidget#mainContainerWidget {{ background-color: {app_main_container_bg}; border-radius: 10px; }}
             QWidget#autotyperPageWidget, QWidget#recorderPageWidget {{ background-color: transparent; }}
             QLabel#backgroundLabel {{ border-radius: 10px; }}
-
-
             QWidget#customTitleBar {{ background-color: {title_bar_bg}; border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom: 1px solid rgba(224, 218, 230, 0.1); }}
             QLabel#titleBarLabel {{ color: {title_bar_text_color}; font-family: "{font_family}"; font-size: 10pt; font-weight: bold; padding-left: 5px; background-color: transparent; }}
-
             QPushButton#toggleModeButton {{
                 background-color: {button_bg_color}; color: {button_text_color};
                 border: 1px solid {button_border_color}; border-radius: 6px;
@@ -164,9 +163,6 @@ class BaseMainWindow(QMainWindow):
             }}
             QPushButton#toggleModeButton:hover {{ background-color: {start_button_hover_bg}; }}
             QPushButton#toggleModeButton:checked {{ background-color: {start_button_bg_color}; }}
-
-
-
             QPushButton#minimizeButton, QPushButton#maximizeRestoreButton, QPushButton#closeButton {{
                 background-color: {title_bar_button_bg}; border: none; border-radius: 6px;
                 color: {subtext_color}; font-family: "{font_family}"; font-size: 12pt; font-weight: bold;
@@ -176,8 +172,6 @@ class BaseMainWindow(QMainWindow):
             QPushButton#closeButton:hover {{ background-color: {close_button_hover_bg}; color: white; }}
             QPushButton#minimizeButton:pressed, QPushButton#maximizeRestoreButton:pressed {{ background-color: {title_bar_button_pressed_bg}; }}
             QPushButton#closeButton:pressed {{ background-color: {close_button_pressed_bg}; }}
-
-
             QComboBox#languageComboBox {{
                 background-color: {combo_box_bg}; color: {text_color};
                 border: 1px solid {combo_box_border}; border-radius: 6px;
@@ -196,8 +190,6 @@ class BaseMainWindow(QMainWindow):
                 selection-background-color: {combo_box_dropdown_item_hover_bg};
                 padding: 3px; border-radius: 4px; font-family: "{font_family}"; font-size: 9pt;
             }}
-
-
             QFrame#inputFrame {{ background-color: {input_frame_bg_color}; border-radius: 14px; padding: 20px; border: 1.5px solid {input_frame_border_color}; }}
             QGroupBox#hotkeyGroup {{
                 font-family: "{font_family}"; font-size: 10pt; color: {text_color};
@@ -212,8 +204,6 @@ class BaseMainWindow(QMainWindow):
                 left: 10px;
                 color: {subtext_color};
             }}
-
-
             QLabel {{ color: {text_color}; font-family: "{font_family}"; font-size: 10pt; padding: 2px; background-color: transparent; }}
             QLabel#currentHotkeyDisplay {{ color: {hotkey_value_color}; font-weight: bold; font-size: 10pt; padding-left: 5px;}}
             QLineEdit, QSpinBox {{
@@ -228,7 +218,6 @@ class BaseMainWindow(QMainWindow):
             }}
             QLineEdit:focus, QSpinBox:focus {{ border: 1.5px solid {input_focus_border_color}; background-color: {input_focus_bg_color}; }}
             QLineEdit::placeholder {{ color: {subtext_color}; }}
-
             QSpinBox::up-button, QSpinBox::down-button {{
                 subcontrol-origin: border; subcontrol-position: right;
                 width: 18px; border: 1.5px solid {input_border_color}; border-radius: 5px;
@@ -237,9 +226,6 @@ class BaseMainWindow(QMainWindow):
             QSpinBox::up-button {{ top: 1px; height: 11px;}}
             QSpinBox::down-button {{ bottom: 1px; height: 11px;}}
             QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background-color: rgba(95, 100, 135, 0.95); }}
-
-
-
             QPushButton {{
                 color: {button_text_color}; background-color: {button_bg_color};
                 border: 1.5px solid {button_border_color};
@@ -252,7 +238,6 @@ class BaseMainWindow(QMainWindow):
             QPushButton#startButton:pressed {{ background-color: {start_button_pressed_bg}; }}
             QPushButton#stopButton:hover {{ background-color: {stop_button_hover_bg}; border-color: rgb(210, 190, 250);}}
             QPushButton#stopButton:pressed {{ background-color: {stop_button_pressed_bg}; }}
-
             QPushButton#setHotkeyButton {{
                 padding: {set_hotkey_button_padding}; min-width: {set_hotkey_button_min_width}; max-width: 180px;
                 font-size: 9pt;
@@ -262,33 +247,22 @@ class BaseMainWindow(QMainWindow):
                 background-color: {button_bg_color}; border-color: {button_border_color};
             }}
             QPushButton#setHotkeyButtonSmall:hover {{ background-color: {start_button_hover_bg}; }}
-
-
-
             QPushButton#recordButton {{ background-color: {record_button_bg}; }}
             QPushButton#recordButton:hover {{ background-color: {record_button_hover_bg}; }}
             QPushButton#recordButton:pressed {{ background-color: {record_button_pressed_bg}; }}
-
             QPushButton#playRecordButton {{ background-color: {play_button_bg}; }}
             QPushButton#playRecordButton:hover {{ background-color: {play_button_hover_bg}; }}
             QPushButton#playRecordButton:pressed {{ background-color: {play_button_pressed_bg}; }}
-
             QPushButton#clearRecordButton {{ background-color: {clear_button_bg}; }}
             QPushButton#clearRecordButton:hover {{ background-color: {clear_button_hover_bg}; }}
             QPushButton#clearRecordButton:pressed {{ background-color: {clear_button_pressed_bg}; }}
-
-
             QPushButton:disabled {{ background-color: {disabled_bg_color}; color: {disabled_text_color}; border-color: {disabled_border_color}; }}
-
-
             QLabel#statusLabel {{
                 color: {subtext_color}; background-color: {status_bg_color};
                 border: 1px solid {status_border_color}; border-radius: 9px;
                 padding: 12px; font-size: 9pt; margin-top: 10px;
                 font-family: "{font_family}";
             }}
-
-
             QTableWidget#recordedEventsTable {{
                 background-color: {table_bg}; color: {text_color}; gridline-color: {table_grid_color};
                 border: 1.5px solid {input_frame_border_color}; border-radius: 8px;
@@ -300,9 +274,6 @@ class BaseMainWindow(QMainWindow):
             }}
             QTableWidget::item {{ padding: 5px; }}
             QTableWidget::item:selected {{ background-color: {start_button_hover_bg}; color: white; }}
-
-
-
             QMessageBox {{ background-color: {msgbox_bg_color}; font-family: "{font_family}"; border-radius: 8px; border: 1px solid {input_frame_border_color}; }}
             QMessageBox QLabel {{ color: {msgbox_text_color}; font-size: 10pt; background-color: transparent; font-family: "{font_family}";}}
             QMessageBox QPushButton {{
@@ -314,7 +285,7 @@ class BaseMainWindow(QMainWindow):
 
         app_font = QFont("Segoe UI", 10)
         if Translations.current_lang == Translations.LANG_JA: app_font = QFont("Meiryo", 9)
-        QApplication.setFont(app_font) 
+        QApplication.setFont(app_font)
 
         self.setStyleSheet(qss)
         self.update();
@@ -332,7 +303,23 @@ class BaseMainWindow(QMainWindow):
 
     def resizeEvent(self, event): self._update_background_pixmap(); super().resizeEvent(event)
 
-    def _get_current_resize_edge(self, local_pos: QPoint) -> int: 
+    def showEvent(self, event): # Anim mo
+        if not self._first_show_animation_done:
+            self._first_show_animation_done = True
+
+            if not self.opacity_animation_open:
+                self.opacity_animation_open = QPropertyAnimation(self, b"windowOpacity", self)
+                self.opacity_animation_open.setDuration(350) #ms
+                self.opacity_animation_open.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+            self.setWindowOpacity(0.0)
+            self.opacity_animation_open.setStartValue(0.0)
+            self.opacity_animation_open.setEndValue(1.0)
+            self.opacity_animation_open.start()
+        super().showEvent(event)
+
+
+    def _get_current_resize_edge(self, local_pos: QPoint) -> int:
         edge = NO_EDGE; rect = self.rect()
         if local_pos.x() < RESIZE_MARGIN: edge |= LEFT_EDGE
         if local_pos.x() > rect.width() - RESIZE_MARGIN: edge |= RIGHT_EDGE
@@ -361,7 +348,7 @@ class BaseMainWindow(QMainWindow):
                 event.accept(); return
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event: QMouseEvent): 
+    def mouseMoveEvent(self, event: QMouseEvent):
         if event.buttons() & Qt.LeftButton:
             if self._is_resizing:
                 delta = event.globalPosition().toPoint() - self._resize_start_mouse_pos; start_geom = self._resize_start_window_geometry; new_geom = QRect(start_geom)
@@ -387,7 +374,7 @@ class BaseMainWindow(QMainWindow):
             else: self.unsetCursor()
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event: QMouseEvent): 
+    def mouseReleaseEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
             changed_state = False
             if self._is_resizing: self._is_resizing = False; changed_state = True
@@ -402,11 +389,13 @@ class BaseMainWindow(QMainWindow):
         if worker and hasattr(worker, 'request_stop'): worker.request_stop()
         if thread and thread.isRunning():
             thread.quit()
-            if not thread.wait(1000): thread.terminate(); thread.wait()
+            if not thread.wait(500): # Giam time
+                thread.terminate()
+                thread.wait(100)
         if hasattr(obj_to_cleanup, worker_attr_name): setattr(obj_to_cleanup, worker_attr_name, None)
         if hasattr(obj_to_cleanup, thread_attr_name): setattr(obj_to_cleanup, thread_attr_name, None)
 
-    def _serialize_key(self, key_obj): 
+    def _serialize_key(self, key_obj):
         if isinstance(key_obj, PynputKey): return {"type": "special", "value": key_obj.name}
         elif isinstance(key_obj, KeyCode):
             if key_obj.char is not None: return {"type": "keycode_char", "value": key_obj.char}
@@ -414,7 +403,7 @@ class BaseMainWindow(QMainWindow):
         elif isinstance(key_obj, str): return {"type": "char_str", "value": key_obj}
         return None
 
-    def _deserialize_key(self, key_data): 
+    def _deserialize_key(self, key_data):
         if not key_data or "type" not in key_data or "value" not in key_data: return None
         key_type, key_value = key_data["type"], key_data["value"]
         try:
@@ -425,7 +414,7 @@ class BaseMainWindow(QMainWindow):
         except (AttributeError, Exception): return None
         return None
 
-    def _load_settings(self): # Ham nay se duoc goi boi lop con
+    def _load_settings(self):
         try:
             if os.path.exists(self.config_path):
                 with open(self.config_path, 'r', encoding='utf-8') as f:
@@ -438,13 +427,13 @@ class BaseMainWindow(QMainWindow):
                 geom_rect_array = settings.get("window_geometry")
                 if geom_rect_array: self.setGeometry(QRect(*geom_rect_array))
                 if settings.get("window_maximized", False): self.showMaximized()
-           
-                return settings 
+
+                return settings
             else:
                 print(Translations.get("config_file_not_found", filepath=self.config_path))
         except Exception as e:
             print(Translations.get("config_loaded_error", filepath=self.config_path, error=str(e)))
-        return {} # Tra ve dict rong neu co loi hoac file ko ton tai
+        return {}
 
     def _save_settings(self, settings_dict):
         try:
@@ -462,11 +451,43 @@ class BaseMainWindow(QMainWindow):
     def hide_countdown_overlay(self):
         if self.countdown_overlay and self.countdown_overlay.isVisible(): self.countdown_overlay.hide()
 
-    def closeEvent(self, event):
 
-        if self.single_key_listener_worker: self.single_key_listener_worker.request_stop_worker_thread()
+    def closeEvent(self, event): # Anim dong
+        if self._animation_is_closing_flag: # Neu dang trong qua trinh dong boi anim
+            event.accept()
+            return
+
+        # Cleanup SingleKeyListenerWorker va Overlay (chi lan dau)
+        if self.single_key_listener_worker:
+            self.single_key_listener_worker.request_stop_worker_thread()
         if self.single_key_listener_thread:
             self.single_key_listener_thread.quit()
-            if not self.single_key_listener_thread.wait(1500): self.single_key_listener_thread.terminate(); self.single_key_listener_thread.wait()
-        self.single_key_listener_worker = None; self.single_key_listener_thread = None
-        if self.countdown_overlay: self.countdown_overlay.close(); self.countdown_overlay = None
+            # Giam time cho nhanh
+            if not self.single_key_listener_thread.wait(500):
+                self.single_key_listener_thread.terminate()
+                self.single_key_listener_thread.wait(100)
+        self.single_key_listener_worker = None # Set None de tranh loi neu closeEvent goi lai
+        self.single_key_listener_thread = None
+
+        if self.countdown_overlay:
+            self.countdown_overlay.close()
+            self.countdown_overlay = None
+
+        if not self.opacity_animation_close:
+            self.opacity_animation_close = QPropertyAnimation(self, b"windowOpacity", self)
+            self.opacity_animation_close.setDuration(250) # ms
+            self.opacity_animation_close.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            self.opacity_animation_close.finished.connect(self._handle_close_animation_finished)
+
+        if self.opacity_animation_close.state() == QAbstractAnimation.State.Running:
+            self.opacity_animation_close.stop() # Dung anim cu neu co
+
+        self.opacity_animation_close.setStartValue(self.windowOpacity())
+        self.opacity_animation_close.setEndValue(0.0)
+        self.opacity_animation_close.start()
+        event.ignore() # Ko dong cua so ngay
+
+    @Slot()
+    def _handle_close_animation_finished(self):
+        self._animation_is_closing_flag = True # Dat co
+        self.close() # Goi lai closeEvent, luc nay se accept
