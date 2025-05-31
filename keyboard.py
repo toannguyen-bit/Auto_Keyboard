@@ -5,7 +5,7 @@ import threading
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QMessageBox, QFormLayout,
-    QSizePolicy, QFrame, QStackedLayout 
+    QSizePolicy, QFrame, QStackedLayout
 )
 from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPoint, QSize, QRect # Them QRect
 from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent
@@ -86,11 +86,9 @@ class CustomTitleBar(QWidget):
         layout.addWidget(self.btn_maximize_restore)
         self.btn_close = QPushButton("✕"); self.btn_close.setObjectName("closeButton"); self.btn_close.setFixedSize(30, 30); self.btn_close.clicked.connect(self.window().close)
         layout.addWidget(self.btn_close)
-        # _drag_pos se duoc quan ly boi AutoTyperWindow
     def _toggle_maximize_restore(self):
         if self.window().isMaximized(): self.window().showNormal(); self.btn_maximize_restore.setText("□")
         else: self.window().showMaximized(); self.btn_maximize_restore.setText("▫")
-    # mousePressEvent, mouseMoveEvent, mouseReleaseEvent da duoc chuyen len AutoTyperWindow
     def setTitle(self, title): self.title_label.setText(title)
 
 # --- Cửa sổ chính ---
@@ -98,14 +96,13 @@ class AutoTyperWindow(QMainWindow):
     DEFAULT_HOTKEY = PynputKey.f9
     DEFAULT_HOTKEY_NAME = "F9"
 
-    RESIZE_MARGIN = 10 # px, do rong vung resize
+    RESIZE_MARGIN = 10
 
     NO_EDGE = 0x0
     TOP_EDGE = 0x1
     BOTTOM_EDGE = 0x2
     LEFT_EDGE = 0x4
     RIGHT_EDGE = 0x8
-    # Cac goc la ket hop cua cac canh (bitmask)
     TOP_LEFT_CORNER = TOP_EDGE | LEFT_EDGE
     TOP_RIGHT_CORNER = TOP_EDGE | RIGHT_EDGE
     BOTTOM_LEFT_CORNER = BOTTOM_EDGE | LEFT_EDGE
@@ -114,15 +111,15 @@ class AutoTyperWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.base_path = os.path.dirname(os.path.abspath(__file__))
-        self.background_image_filename = "stellar.jpg" 
+        self.background_image_filename = "stellar.jpg"
         self.background_image_path = os.path.join(self.base_path, self.background_image_filename).replace("\\", "/")
 
-        self.setWindowTitle("AutoTyper Poetic") 
-        self.setMinimumSize(580, 450) 
-        self.resize(800, 600) 
+        self.setWindowTitle("AutoTyper Poetic")
+        self.setMinimumSize(580, 450)
+        self.resize(800, 600)
 
         self.setWindowFlag(Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground, True) 
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         self.is_typing_active = False
         self.current_hotkey = self.DEFAULT_HOTKEY
@@ -135,38 +132,34 @@ class AutoTyperWindow(QMainWindow):
         
         self.original_pixmap = QPixmap(self.background_image_path)
 
-        # Bien cho viec di chuyen va resize cua so
         self._is_dragging = False
-        self._drag_start_pos = QPoint() # Vi tri bat dau keo (global - frame.topLeft())
+        self._drag_start_pos = QPoint()
         self._is_resizing = False
         self._resize_edge = self.NO_EDGE
-        self._resize_start_mouse_pos = QPoint() # Vi tri chuot bat dau resize (global)
-        self._resize_start_window_geometry = QRect() # Geometry cua so khi bat dau resize
+        self._resize_start_mouse_pos = QPoint()
+        self._resize_start_window_geometry = QRect()
 
         self.init_ui()
         self.apply_styles()
         self.init_hotkey_listener()
         
         self.custom_title_bar.setTitle(f"AutoTyper Poetic - Hotkey: {self.DEFAULT_HOTKEY_NAME}")
-        self.setMouseTracking(True) # Bat theo doi chuot de cap nhat cursor va xu ly resize/drag
+        self.setMouseTracking(True)
 
     def init_ui(self):
         self.main_container_widget = QWidget()
         self.main_container_widget.setObjectName("mainContainerWidget")
         self.setCentralWidget(self.main_container_widget)
-        # self.main_container_widget.setMouseTracking(True) # Cho phep event pass len window
 
         overall_layout = QVBoxLayout(self.main_container_widget)
         overall_layout.setContentsMargins(0,0,0,0)
         overall_layout.setSpacing(0)
 
         self.custom_title_bar = CustomTitleBar(self)
-        # self.custom_title_bar.setMouseTracking(True) # Cho phep event pass len window
         overall_layout.addWidget(self.custom_title_bar)
 
-        main_area_widget = QWidget() 
-        # main_area_widget.setMouseTracking(True) # Cho phep event pass len window
-        main_area_layout = QVBoxLayout(main_area_widget) 
+        main_area_widget = QWidget()
+        main_area_layout = QVBoxLayout(main_area_widget)
         main_area_layout.setContentsMargins(0,0,0,0)
         main_area_layout.setSpacing(0)
 
@@ -174,13 +167,12 @@ class AutoTyperWindow(QMainWindow):
         main_area_stacked_layout.setStackingMode(QStackedLayout.StackingMode.StackAll)
         
         self.background_label = QLabel()
-        # self.background_label.setMouseTracking(True) # Cho phep event pass len window
         self.background_label.setObjectName("backgroundLabel")
         if self.original_pixmap.isNull():
             print(f"Loi: Khong the tai anh nen tu '{self.background_image_path}'")
             self.background_label.setText("Lỗi tải ảnh nền! Kiểm tra console.")
             self.background_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.background_label.setStyleSheet("background-color: rgb(12, 14, 26); color: white;")
+            self.background_label.setStyleSheet("background-color: rgb(10, 12, 22); color: white;")
         else:
             self._update_background_pixmap()
         
@@ -188,10 +180,9 @@ class AutoTyperWindow(QMainWindow):
         main_area_stacked_layout.addWidget(self.background_label)
 
         content_widget = QWidget()
-        # content_widget.setMouseTracking(True) # Cho phep event pass len window
         content_widget.setObjectName("contentWidget")
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(35, 20, 35, 25) 
+        content_layout.setContentsMargins(35, 20, 35, 25)
         content_layout.setSpacing(18)
 
         input_frame = QFrame()
@@ -210,7 +201,7 @@ class AutoTyperWindow(QMainWindow):
         content_layout.addWidget(input_frame)
 
         button_layout_container = QWidget()
-        button_layout = QHBoxLayout(button_layout_container); button_layout.setContentsMargins(0,10,0,0) 
+        button_layout = QHBoxLayout(button_layout_container); button_layout.setContentsMargins(0,10,0,0)
         self.btn_start = QPushButton(f"Start ({self.current_hotkey_name})"); self.btn_start.setObjectName("startButton"); self.btn_start.clicked.connect(self.toggle_typing_process)
         self.btn_stop = QPushButton("Stop"); self.btn_stop.setObjectName("stopButton"); self.btn_stop.setEnabled(False); self.btn_stop.clicked.connect(self.stop_typing_process)
         button_layout.addStretch(); button_layout.addWidget(self.btn_start); button_layout.addWidget(self.btn_stop); button_layout.addStretch()
@@ -221,47 +212,58 @@ class AutoTyperWindow(QMainWindow):
         
         main_area_stacked_layout.addWidget(content_widget)
         main_area_stacked_layout.setCurrentWidget(content_widget)
-        main_area_layout.addLayout(main_area_stacked_layout) 
+        main_area_layout.addLayout(main_area_stacked_layout)
 
-        # QSizeGrip da duoc loai bo
-        overall_layout.addWidget(main_area_widget) 
+        overall_layout.addWidget(main_area_widget)
 
     def apply_styles(self):
-        # QSS (loai bo style cho QSizeGrip)
         font_family = "Segoe UI, Arial, sans-serif"
-        app_main_container_bg = "rgb(12, 14, 26)"
-        title_bar_bg = "rgba(18, 20, 36, 0.85)" 
-        title_bar_text_color = "rgb(216, 191, 216)"
+        
+        app_main_container_bg = "rgb(10, 12, 22)" 
+        title_bar_bg = "rgba(15, 18, 30, 0.9)" 
+        title_bar_text_color = "rgb(224, 218, 230)" 
         title_bar_button_bg = "transparent"
-        title_bar_button_hover_bg = "rgba(216, 191, 216, 0.2)"
-        title_bar_button_pressed_bg = "rgba(216, 191, 216, 0.1)"
-        close_button_hover_bg = "rgba(255, 100, 100, 0.7)"
-        close_button_pressed_bg = "rgba(255, 100, 100, 0.5)"
-        input_frame_bg_color = "rgba(25, 28, 48, 0.9)" 
-        input_frame_border_color = "rgba(150, 130, 180, 0.4)"
-        text_color = "rgb(235, 235, 245)"
-        subtext_color = "rgb(200, 200, 210)"
-        input_bg_color = "rgba(18, 20, 36, 0.95)"
-        input_border_color = "rgba(150, 130, 180, 0.55)"
-        input_focus_border_color = "rgb(190, 170, 230)"
-        input_focus_bg_color = "rgba(25, 28, 50, 0.98)"
+        title_bar_button_hover_bg = "rgba(224, 218, 230, 0.15)"
+        title_bar_button_pressed_bg = "rgba(224, 218, 230, 0.08)"
+        close_button_hover_bg = "rgba(200, 90, 110, 0.75)"
+        close_button_pressed_bg = "rgba(190, 80, 100, 0.6)"
+        
+        input_frame_bg_color = "rgba(20, 24, 40, 0.88)"
+        input_frame_border_color = "rgba(170, 150, 200, 0.4)"
+        
+        text_color = "rgb(238, 235, 245)"
+        subtext_color = "rgb(175, 170, 185)"
+        
+        input_bg_color = "rgba(12, 15, 28, 0.92)"
+        input_border_color = "rgba(170, 150, 200, 0.55)"
+        input_focus_border_color = "rgb(210, 190, 250)"
+        input_focus_bg_color = "rgba(22, 25, 45, 0.96)"
+        
         button_text_color = text_color
-        button_bg_color = "rgba(60, 65, 95, 0.9)"
-        button_border_color = "rgba(190, 170, 230, 0.75)"
-        start_button_bg_color = "rgba(255, 120, 120, 0.45)"
-        start_button_border_color = "rgba(255, 120, 120, 0.9)"
-        start_button_hover_bg = "rgba(255, 120, 120, 0.65)"
-        start_button_pressed_bg = "rgba(255, 120, 120, 0.4)"
-        stop_button_hover_bg = "rgba(190, 170, 230, 0.6)"
-        stop_button_pressed_bg = "rgba(190, 170, 230, 0.4)"
-        disabled_bg_color = "rgba(70, 73, 100, 0.75)"
-        disabled_text_color = "rgba(192, 192, 192, 0.8)"
-        disabled_border_color = "rgba(150, 130, 180, 0.35)"
-        status_bg_color = "rgba(25, 28, 48, 0.88)"
-        status_border_color = "rgba(85, 88, 120, 0.75)"
-        msgbox_bg_color = "rgb(28, 30, 50)"
-        msgbox_text_color = "rgb(230, 230, 240)"
-        msgbox_button_bg = start_button_bg_color
+        button_bg_color = "rgba(75, 80, 115, 0.92)" # Mau nut Stop
+        button_border_color = "rgba(210, 190, 250, 0.7)" # Vien nut Stop
+        
+        # Dieu chinh mau nut Start
+        start_button_bg_color = "rgba(96, 125, 199, 0.65)"  # Comet Tail Blue / Dusty Blue
+        start_button_border_color = "rgba(126, 155, 229, 0.85)"
+        start_button_hover_bg = "rgba(116, 145, 219, 0.75)"
+        start_button_pressed_bg = "rgba(86, 115, 189, 0.6)"
+        start_button_hover_border_color_val = "rgb(116, 145, 219)" # Mau vien khi hover nut Start
+
+        stop_button_hover_bg = "rgba(210, 190, 250, 0.6)"
+        stop_button_pressed_bg = "rgba(210, 190, 250, 0.4)"
+        
+        disabled_bg_color = "rgba(60, 63, 90, 0.7)"
+        disabled_text_color = "rgba(160, 155, 170, 0.75)"
+        disabled_border_color = "rgba(170, 150, 200, 0.3)"
+        
+        status_bg_color = "rgba(20, 24, 40, 0.85)"
+        status_border_color = "rgba(100, 105, 140, 0.7)"
+        
+        # Nut trong QMessageBox se dung mau cua nut Start moi
+        msgbox_bg_color = "rgb(20, 22, 40)"
+        msgbox_text_color = "rgb(230, 225, 235)"
+        msgbox_button_bg = start_button_bg_color 
         msgbox_button_border = start_button_border_color
         msgbox_button_hover_bg = start_button_hover_bg
 
@@ -270,7 +272,7 @@ class AutoTyperWindow(QMainWindow):
             QWidget#mainContainerWidget {{ background-color: {app_main_container_bg}; border-radius: 10px; }}
             QLabel#backgroundLabel {{ border-radius: 10px; }}
             QWidget#contentWidget {{ background-color: transparent; }}
-            QWidget#customTitleBar {{ background-color: {title_bar_bg}; border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom: 1px solid rgba(216, 191, 216, 0.15); }}
+            QWidget#customTitleBar {{ background-color: {title_bar_bg}; border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom: 1px solid rgba(224, 218, 230, 0.1); }}
             QLabel#titleBarLabel {{ color: {title_bar_text_color}; font-family: "{font_family}"; font-size: 10pt; font-weight: bold; padding-left: 10px; background-color: transparent; }}
             QPushButton#minimizeButton, QPushButton#maximizeRestoreButton, QPushButton#closeButton {{ background-color: {title_bar_button_bg}; border: none; border-radius: 6px; color: {subtext_color}; font-family: "{font_family}"; font-size: 12pt; font-weight: bold; min-width: 30px; max-width: 30px; min-height: 30px; max-height: 30px; padding: 0px; }}
             QPushButton#minimizeButton:hover, QPushButton#maximizeRestoreButton:hover {{ background-color: {title_bar_button_hover_bg}; color: {text_color}; }}
@@ -285,20 +287,19 @@ class AutoTyperWindow(QMainWindow):
             QSpinBox::up-button, QSpinBox::down-button {{ subcontrol-origin: border; subcontrol-position: right; width: 20px; border: 1.5px solid {input_border_color}; border-radius: 5px; background-color: {button_bg_color}; margin: 2px 3px 2px 2px; }}
             QSpinBox::up-button {{ top: 2px; height: 12px;}} 
             QSpinBox::down-button {{ bottom: 2px; height: 12px;}}
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background-color: rgba(85, 88, 110, 0.95); }}
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background-color: rgba(95, 100, 135, 0.95); }}
             QPushButton {{ color: {button_text_color}; background-color: {button_bg_color}; border: 1.5px solid {button_border_color}; padding: 12px 25px; border-radius: 12px; font-family: "{font_family}"; font-size: 10pt; font-weight: bold; min-width: 140px; }}
             QPushButton#startButton {{ background-color: {start_button_bg_color}; border-color: {start_button_border_color}; }}
-            QPushButton#startButton:hover {{ background-color: {start_button_hover_bg}; border-color: rgb(255, 120, 120); }}
+            QPushButton#startButton:hover {{ background-color: {start_button_hover_bg}; border-color: {start_button_hover_border_color_val}; }}
             QPushButton#startButton:pressed {{ background-color: {start_button_pressed_bg}; }}
-            QPushButton#stopButton:hover {{ background-color: {stop_button_hover_bg}; border-color: rgb(190, 170, 230); }}
+            QPushButton#stopButton:hover {{ background-color: {stop_button_hover_bg}; border-color: rgb(210, 190, 250); }} /* Giu nguyen hoac dieu chinh cho phu hop*/
             QPushButton#stopButton:pressed {{ background-color: {stop_button_pressed_bg}; }}
             QPushButton:disabled {{ background-color: {disabled_bg_color}; color: {disabled_text_color}; border-color: {disabled_border_color}; }}
             QLabel#statusLabel {{ color: {subtext_color}; background-color: {status_bg_color}; border: 1px solid {status_border_color}; border-radius: 9px; padding: 13px; font-size: 9pt; margin-top: 15px; }}
-            /* QSizeGrip da bi xoa */
             QMessageBox {{ background-color: {msgbox_bg_color}; font-family: "{font_family}"; border-radius: 8px; border: 1px solid {input_frame_border_color}; }}
             QMessageBox QLabel {{ color: {msgbox_text_color}; font-size: 10pt; background-color: transparent;}}
             QMessageBox QPushButton {{ background-color: {msgbox_button_bg}; border-color: {msgbox_button_border}; color: {button_text_color}; padding: 9px 20px; border-radius: 9px; min-width: 85px; }}
-            QMessageBox QPushButton:hover {{ background-color: {msgbox_button_hover_bg}; }}
+            QMessageBox QPushButton:hover {{ background-color: {msgbox_button_hover_bg}; border-color: {start_button_hover_border_color_val}; }} /* Ap dung mau vien hover moi */
         """
         self.setStyleSheet(qss)
     
@@ -318,15 +319,13 @@ class AutoTyperWindow(QMainWindow):
             )
             self.background_label.setPixmap(scaled_pixmap)
 
-    def resizeEvent(self, event): # Su kien resize cua so
+    def resizeEvent(self, event):
         self._update_background_pixmap()
         super().resizeEvent(event)
 
-    # --- Xu ly di chuyen va resize cua so ---
     def _get_current_resize_edge(self, local_pos: QPoint) -> int:
-        """Xđ canh/goc chuot dang tro toi de resize (toa do local)."""
         edge = self.NO_EDGE
-        rect = self.rect() # Kich thuoc cua so hien tai
+        rect = self.rect()
 
         if local_pos.x() < self.RESIZE_MARGIN: edge |= self.LEFT_EDGE
         if local_pos.x() > rect.width() - self.RESIZE_MARGIN: edge |= self.RIGHT_EDGE
@@ -340,20 +339,18 @@ class AutoTyperWindow(QMainWindow):
             local_pos = event.position().toPoint()
             global_pos = event.globalPosition().toPoint()
 
-            # Uu tien ktra resize
             self._resize_edge = self._get_current_resize_edge(local_pos)
             if self._resize_edge != self.NO_EDGE:
                 self._is_resizing = True
-                self._is_dragging = False 
+                self._is_dragging = False
                 self._resize_start_mouse_pos = global_pos
                 self._resize_start_window_geometry = self.geometry()
                 event.accept()
                 return
 
-            # Neu ko resize, ktra di chuyen cua so (neu chuot tren title bar)
             if self.custom_title_bar.geometry().contains(local_pos):
                 self._is_dragging = True
-                self._is_resizing = False 
+                self._is_resizing = False
                 self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
                 event.accept()
                 return
@@ -361,7 +358,6 @@ class AutoTyperWindow(QMainWindow):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        # Neu dang giu chuot trai
         if event.buttons() & Qt.LeftButton:
             if self._is_resizing:
                 current_mouse_pos = event.globalPosition().toPoint()
@@ -378,7 +374,7 @@ class AutoTyperWindow(QMainWindow):
                     new_width = start_geom.width() - delta.x()
                     if new_width < min_w:
                         new_width = min_w
-                        new_left = start_geom.right() - min_w # Giu canh phai
+                        new_left = start_geom.right() - min_w
                     new_geom.setLeft(new_left)
                     new_geom.setWidth(new_width)
 
@@ -392,7 +388,7 @@ class AutoTyperWindow(QMainWindow):
                     new_height = start_geom.height() - delta.y()
                     if new_height < min_h:
                         new_height = min_h
-                        new_top = start_geom.bottom() - min_h # Giu canh duoi
+                        new_top = start_geom.bottom() - min_h
                     new_geom.setTop(new_top)
                     new_geom.setHeight(new_height)
 
@@ -409,7 +405,6 @@ class AutoTyperWindow(QMainWindow):
                 event.accept()
                 return
 
-        # Neu ko giu chuot trai, hoac ko phai resizing/dragging -> cap nhat con tro chuot
         if not (self._is_resizing or self._is_dragging):
             local_pos = event.position().toPoint()
             current_hover_edge = self._get_current_resize_edge(local_pos)
@@ -417,8 +412,8 @@ class AutoTyperWindow(QMainWindow):
             is_on_title_bar_main_part = self.custom_title_bar.geometry().contains(local_pos) and \
                                         current_hover_edge == self.NO_EDGE
 
-            if is_on_title_bar_main_part: # Chuot tren titlebar, ko phai canh resize
-                self.unsetCursor() 
+            if is_on_title_bar_main_part:
+                self.unsetCursor()
             elif current_hover_edge == self.TOP_LEFT_CORNER or current_hover_edge == self.BOTTOM_RIGHT_CORNER:
                 self.setCursor(Qt.SizeFDiagCursor)
             elif current_hover_edge == self.TOP_RIGHT_CORNER or current_hover_edge == self.BOTTOM_LEFT_CORNER:
@@ -427,7 +422,7 @@ class AutoTyperWindow(QMainWindow):
                 self.setCursor(Qt.SizeHorCursor)
             elif current_hover_edge & self.TOP_EDGE or current_hover_edge & self.BOTTOM_EDGE:
                 self.setCursor(Qt.SizeVerCursor)
-            else: # Khong tren canh nao ca
+            else:
                 self.unsetCursor()
         
         super().mouseMoveEvent(event)
@@ -443,14 +438,12 @@ class AutoTyperWindow(QMainWindow):
                 changed_state = True
             
             if changed_state:
-                self._resize_edge = self.NO_EDGE 
-                self.unsetCursor() # Reset cursor
+                self._resize_edge = self.NO_EDGE
+                self.unsetCursor()
                 event.accept()
                 return
         super().mouseReleaseEvent(event)
 
-
-    # --- Cac phuong thuc logic (init_hotkey_listener, toggle_typing_process, ...) giu nguyen ---
     def init_hotkey_listener(self):
         self.hotkey_listener_thread = QThread(self)
         self.hotkey_listener_worker = HotkeyListenerWorker(self.current_hotkey)
@@ -473,8 +466,8 @@ class AutoTyperWindow(QMainWindow):
         repetitions = self.spin_repetitions.value()
         if not text: QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập văn bản hoặc phím cần nhấn."); return
         if self.autotyper_thread and self.autotyper_thread.isRunning():
-            if self.autotyper_worker: self.autotyper_worker.request_stop() 
-            self.autotyper_thread.quit() 
+            if self.autotyper_worker: self.autotyper_worker.request_stop()
+            self.autotyper_thread.quit()
             if not self.autotyper_thread.wait(300): pass
         self.is_typing_active = True
         self.btn_start.setEnabled(False); self.btn_start.setText("...")
@@ -486,7 +479,7 @@ class AutoTyperWindow(QMainWindow):
         self.autotyper_worker.update_status_signal.connect(self.update_status_label)
         self.autotyper_worker.error_signal.connect(self.show_error_message_box)
         self.autotyper_worker.typing_finished_signal.connect(self.handle_worker_really_finished)
-        self.autotyper_worker.typing_finished_signal.connect(self.autotyper_worker.deleteLater) 
+        self.autotyper_worker.typing_finished_signal.connect(self.autotyper_worker.deleteLater)
         self.autotyper_thread.started.connect(self.autotyper_worker.run)
         self.autotyper_thread.finished.connect(self.handle_thread_really_finished)
         self.autotyper_thread.finished.connect(self.autotyper_thread.deleteLater)
@@ -516,16 +509,16 @@ class AutoTyperWindow(QMainWindow):
     @Slot()
     def handle_worker_really_finished(self):
         self._reset_typing_state_and_ui()
-        if self.autotyper_thread and self.autotyper_thread.isRunning(): self.autotyper_thread.quit() 
+        if self.autotyper_thread and self.autotyper_thread.isRunning(): self.autotyper_thread.quit()
 
     @Slot()
     def handle_thread_really_finished(self):
-        self.autotyper_worker = None; self.autotyper_thread = None 
+        self.autotyper_worker = None; self.autotyper_thread = None
         if self.is_typing_active: self._reset_typing_state_and_ui()
         else: self.status_label.setText(f"Đã dừng (hoàn toàn). Nhấn '{self.current_hotkey_name}' để bắt đầu.")
 
     def closeEvent(self, event):
-        if self.autotyper_worker: self.autotyper_worker.request_stop() 
+        if self.autotyper_worker: self.autotyper_worker.request_stop()
         if self.autotyper_thread and self.autotyper_thread.isRunning():
             self.autotyper_thread.quit(); self.autotyper_thread.wait(200)
         if self.hotkey_listener_worker: self.hotkey_listener_worker.request_stop()
