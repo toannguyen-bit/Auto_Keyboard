@@ -2,7 +2,7 @@
 import time
 from PySide6.QtCore import QObject, Signal, Slot, QThread
 from pynput.keyboard import Controller as PynputController, Listener as PynputListener, Key as PynputKey
-from .translations import Translations # Import tuong doi
+from .translations import Translations 
 
 # --- Ham tien ich lay ten hien thi cho Pynput Key ---
 def get_pynput_key_display_name(key_obj):
@@ -102,10 +102,10 @@ class HotkeyListenerWorker(QObject):
         try:
             self._pynput_listener=PynputListener(on_press=on_press, suppress=False) # suppress=False de debug
             self._pynput_listener.start()
-            self._pynput_listener.join() # Block thread nay cho den khi listener stop
+            self._pynput_listener.join() 
         except Exception as e:
             # print(f"Error starting/joining PynputListener: {e}")
-            pass # Co the emit error signal
+            pass
         # print("HotkeyListenerWorker: Listener stopped/finished.")
 
     @Slot()

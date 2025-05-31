@@ -4,7 +4,7 @@ import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QMessageBox, QFormLayout,
-    QSizePolicy, QFrame, QStackedLayout, QGroupBox # Them QGroupBox
+    QSizePolicy, QFrame, QStackedLayout, QGroupBox
 )
 from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPoint, QSize, QRect
 from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent, QKeyEvent

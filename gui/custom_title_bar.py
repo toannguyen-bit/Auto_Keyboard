@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton, QComboBox
 )
 from PySide6.QtCore import Qt, Signal, QPoint
-from core.translations import Translations # Import tuong doi
+from core.translations import Translations 
 
 class CustomTitleBar(QWidget):
     language_changed_signal = Signal(str) # Signal de thong bao thay doi NN
