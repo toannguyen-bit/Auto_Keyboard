@@ -321,13 +321,14 @@ class RecordedPlayerWorker(QObject):
     error_signal = Signal(str)
 
     # recorded_events la list cua (key_obj, action_canonical, delay_ms)
-    def __init__(self, recorded_events, play_stop_hotkey_name):
+    def __init__(self, recorded_events, repetitions, play_stop_hotkey_name): # Them repetitions
         super().__init__()
         self.recorded_events = recorded_events
+        self.repetitions = repetitions # Luu so lan lap
         self.play_stop_hotkey_name = play_stop_hotkey_name
         self.keyboard_controller = PynputController()
         self._is_running_request = True
-        self.total_actions = len(recorded_events)
+        self.total_actions_per_rep = len(recorded_events) # So hanh dong trong 1 lan lap
 
     @Slot()
     def run(self):
@@ -335,6 +336,11 @@ class RecordedPlayerWorker(QObject):
         try:
             if not self.recorded_events:
                 self.error_signal.emit(Translations.get("msgbox_no_recording_text"))
+                error_emitted = True
+                return
+            if self.repetitions < 0: # So lan lap khong hop le
+                # Co the them mot translation key moi cho loi nay neu can
+                self.error_signal.emit(Translations.get("worker_invalid_repetitions_error"))
                 error_emitted = True
                 return
 
@@ -345,32 +351,42 @@ class RecordedPlayerWorker(QObject):
                     return # Finally se emit finished
                 time.sleep(0.05)
 
-            for i, (key_obj, action_canonical, delay_ms) in enumerate(self.recorded_events):
-                if not self._is_running_request: break
+            current_rep = 0
+            while self._is_running_request:
+                if self.repetitions != 0 and current_rep >= self.repetitions:
+                    break # Da hoan thanh so lan lap yeu cau
 
-                if delay_ms > 0:
-                    sleep_start_time = time.perf_counter()
-                    # Chia nho sleep de phan ung nhanh voi request_stop
-                    target_sleep_s = delay_ms / 1000.0
-                    while time.perf_counter() - sleep_start_time < target_sleep_s:
-                        if not self._is_running_request: break
-                        # Sleep ngan hon, vd 10ms, de kiem tra _is_running_request thuong xuyen hon
-                        time.sleep(min(0.01, target_sleep_s - (time.perf_counter() - sleep_start_time) ))
-                if not self._is_running_request: break
+                rep_total_display_text = str(self.repetitions) if self.repetitions != 0 else Translations.get("rep_text_infinite")
 
-                # key_obj da la PynputKey hoac KeyCode (hoac char string neu hotkey la char)
-                # PynputController xu ly dc cac loai nay
-                if action_canonical == "press":
-                    self.keyboard_controller.press(key_obj)
-                elif action_canonical == "release":
-                    self.keyboard_controller.release(key_obj)
+                for i, (key_obj, action_canonical, delay_ms) in enumerate(self.recorded_events):
+                    if not self._is_running_request: break
 
-                self.update_status_signal.emit(
-                    Translations.get("status_player_playing",
-                                     current_action=i + 1,
-                                     total_actions=self.total_actions,
-                                     hotkey_name=self.play_stop_hotkey_name)
-                )
+                    if delay_ms > 0:
+                        sleep_start_time = time.perf_counter()
+                        target_sleep_s = delay_ms / 1000.0
+                        while time.perf_counter() - sleep_start_time < target_sleep_s:
+                            if not self._is_running_request: break
+                            time.sleep(min(0.01, target_sleep_s - (time.perf_counter() - sleep_start_time) ))
+                    if not self._is_running_request: break
+
+                    if action_canonical == "press":
+                        self.keyboard_controller.press(key_obj)
+                    elif action_canonical == "release":
+                        self.keyboard_controller.release(key_obj)
+
+                    self.update_status_signal.emit(
+                        Translations.get("status_player_playing",
+                                         rep_count=current_rep + 1,
+                                         rep_total_text=rep_total_display_text,
+                                         current_action=i + 1,
+                                         total_actions=self.total_actions_per_rep,
+                                         hotkey_name=self.play_stop_hotkey_name)
+                    )
+                
+                if not self._is_running_request: # Kiem tra sau vong lap action
+                    break
+                current_rep += 1
+
         except Exception as e:
             self.error_signal.emit(Translations.get("worker_runtime_error", error_message=str(e)))
             error_emitted = True

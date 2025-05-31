@@ -268,10 +268,10 @@ class Translations:
             LANG_EN: "Recording stopped. Press '{hotkey_name}' to record again.",
             LANG_JA: "録画停止。'{hotkey_name}' を押して再録画。"
         },
-        "status_player_playing": { # current_action, total_actions, hotkey_name
-            LANG_VI: "Đang phát... ({current_action}/{total_actions}). Nhấn '{hotkey_name}' để dừng.",
-            LANG_EN: "Playing... ({current_action}/{total_actions}). Press '{hotkey_name}' to stop.",
-            LANG_JA: "再生中... ({current_action}/{total_actions})。'{hotkey_name}' を押して停止。"
+        "status_player_playing": { # rep_count, rep_total_text, current_action, total_actions, hotkey_name
+            LANG_VI: "Đang phát... (Lặp {rep_count}/{rep_total_text}, HĐ {current_action}/{total_actions}). Nhấn '{hotkey_name}' để dừng.",
+            LANG_EN: "Playing... (Rep {rep_count}/{rep_total_text}, Act {current_action}/{total_actions}). Press '{hotkey_name}' to stop.",
+            LANG_JA: "再生中... (反復 {rep_count}/{rep_total_text}、動作 {current_action}/{total_actions})。'{hotkey_name}' を押して停止。"
         },
         "status_player_stopped": { # hotkey_name
             LANG_VI: "Đã dừng phát. Nhấn '{hotkey_name}' để phát lại.",

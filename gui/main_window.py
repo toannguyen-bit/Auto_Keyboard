@@ -75,6 +75,7 @@ class AutoTyperWindow(QMainWindow):
     DEFAULT_HOTKEY = PynputKey.f9
     DEFAULT_START_RECORD_HOTKEY = PynputKey.f10
     DEFAULT_PLAY_RECORD_HOTKEY = PynputKey.f11
+    DEFAULT_RECORD_REPETITIONS = 1 # Mac dinh phat 1 lan
 
     RESIZE_MARGIN = 10
     NO_EDGE, TOP_EDGE, BOTTOM_EDGE, LEFT_EDGE, RIGHT_EDGE = 0x0, 0x1, 0x2, 0x4, 0x8
@@ -277,6 +278,22 @@ class AutoTyperWindow(QMainWindow):
         self.recorded_events_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers) # Ko cho edit truc tiep
         self.recorded_events_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows) # Chon ca hang
         content_layout.addWidget(self.recorded_events_table, 1) # Cho table gian ra (stretch factor 1)
+        
+        # Playback options (Repetitions)
+        playback_options_container = QWidget() # Container de can giua
+        playback_options_layout = QHBoxLayout(playback_options_container)
+        playback_options_layout.setContentsMargins(0, 5, 0, 5) # Chut margin
+        self.label_for_record_repetitions = QLabel()
+        self.spin_record_repetitions = QSpinBox()
+        self.spin_record_repetitions.setRange(0, 1000000) # 0 la vo han
+        self.spin_record_repetitions.setValue(self.DEFAULT_RECORD_REPETITIONS) # Mac dinh
+        self.spin_record_repetitions.setObjectName("recordRepetitionsInput")
+        playback_options_layout.addStretch(1)
+        playback_options_layout.addWidget(self.label_for_record_repetitions)
+        playback_options_layout.addWidget(self.spin_record_repetitions)
+        playback_options_layout.addStretch(1)
+        content_layout.addWidget(playback_options_container)
+
 
         # Record/Play/Clear buttons
         recorder_button_layout = QHBoxLayout()
@@ -385,6 +402,12 @@ class AutoTyperWindow(QMainWindow):
         self.lbl_current_start_record_hotkey_value.setText(self.current_start_record_hotkey_name)
         self.lbl_current_play_record_hotkey_static.setText(Translations.get("label_play_record_hotkey"))
         self.lbl_current_play_record_hotkey_value.setText(self.current_play_record_hotkey_name)
+        
+        # Label va SpinBox cho so lan lap cua recorder
+        self.label_for_record_repetitions.setText(Translations.get("label_repetitions"))
+        self.spin_record_repetitions.setSpecialValueText(Translations.get("repetitions_infinite"))
+        self.spin_record_repetitions.setSuffix("") # Khong can suffix "ms"
+
 
         # Nut set hotkey Ghi
         if self.is_setting_hotkey_type == self.SETTING_START_RECORD_HOTKEY:
@@ -560,6 +583,10 @@ class AutoTyperWindow(QMainWindow):
                 border: 1.5px solid {input_border_color}; border-radius: 9px;
                 padding: 9px 12px; font-family: "{font_family}"; font-size: 10pt;
                 min-height: 24px; /* Dam bao chieu cao input */
+            }}
+            QSpinBox#recordRepetitionsInput {{ /* Style rieng cho spinbox lap cua recorder neu can */
+                min-width: 70px; /* Cho phep spinbox nay hep hon */
+                max-width: 100px;
             }}
             QLineEdit:focus, QSpinBox:focus {{ border: 1.5px solid {input_focus_border_color}; background-color: {input_focus_bg_color}; }}
             QLineEdit::placeholder {{ color: {subtext_color}; }} /* Mau cho placeholder text */
@@ -961,6 +988,7 @@ class AutoTyperWindow(QMainWindow):
         self.btn_start_record.setEnabled(enabled)
         self.btn_play_record.setEnabled(enabled)
         self.btn_clear_record.setEnabled(enabled)
+        self.spin_record_repetitions.setEnabled(enabled) # Quan ly spinbox lap
         self.btn_set_start_record_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_START_RECORD_HOTKEY else (not self.is_setting_hotkey_type or enabled))
         self.btn_set_play_record_hotkey.setEnabled(enabled if self.is_setting_hotkey_type != self.SETTING_PLAY_RECORD_HOTKEY else (not self.is_setting_hotkey_type or enabled))
 
@@ -1173,6 +1201,8 @@ class AutoTyperWindow(QMainWindow):
         if not self.recorded_events:
             QMessageBox.information(self, Translations.get("msgbox_no_recording_title"), Translations.get("msgbox_no_recording_text"))
             return
+        
+        record_repetitions = self.spin_record_repetitions.value()
 
         self.is_playing_recording = True
         self._update_recorder_controls_state() # Cap nhat UI (nut Stop Playing, vo hieu hoa Record/Clear)
@@ -1185,7 +1215,7 @@ class AutoTyperWindow(QMainWindow):
         events_for_worker = [(evt[0], evt[2], evt[3]) for evt in self.recorded_events]
 
 
-        self.player_worker = RecordedPlayerWorker(events_for_worker, self.current_play_record_hotkey_name)
+        self.player_worker = RecordedPlayerWorker(events_for_worker, record_repetitions, self.current_play_record_hotkey_name)
         self.player_worker.moveToThread(self.player_thread)
 
         self.player_worker.update_status_signal.connect(self._update_recorder_status_label)
@@ -1267,6 +1297,10 @@ class AutoTyperWindow(QMainWindow):
             Translations.get("button_stop_playing_recording", hotkey_name=self.current_play_record_hotkey_name) if self.is_playing_recording
             else Translations.get("button_play_recording", hotkey_name=self.current_play_record_hotkey_name)
         )
+        
+        # SpinBox so lan lap
+        self.spin_record_repetitions.setEnabled(not self.is_recording and not self.is_playing_recording and self.is_setting_hotkey_type == 0)
+
 
         # Cac nut khac
         self.btn_clear_record.setEnabled(is_idle_for_hotkey_setting and len(self.recorded_events) > 0) # Chi cho xoa khi idle va co ban ghi
@@ -1386,6 +1420,10 @@ class AutoTyperWindow(QMainWindow):
                     self.current_play_record_hotkey = deserialized_play_hk
                     self.current_play_record_hotkey_name = get_pynput_key_display_name(self.current_play_record_hotkey)
 
+                # So lan lap cua recorder
+                self.spin_record_repetitions.setValue(settings.get("recorder_repetitions", self.DEFAULT_RECORD_REPETITIONS))
+
+
                 # Recorded events
                 self.recorded_events = []
                 saved_events = settings.get("recorded_events_v2", []) # v2 su dung key_obj serialization
@@ -1433,6 +1471,7 @@ class AutoTyperWindow(QMainWindow):
 
             "recorder_start_hotkey": self._serialize_key(self.current_start_record_hotkey),
             "recorder_play_hotkey": self._serialize_key(self.current_play_record_hotkey),
+            "recorder_repetitions": self.spin_record_repetitions.value(), # Luu so lan lap
 
             "advanced_mode_active": self.view_stack.currentWidget() == self.recorder_page,
         }
