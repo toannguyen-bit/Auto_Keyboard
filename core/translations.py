@@ -187,6 +187,31 @@ class Translations:
             LANG_EN: "Could not set hotkey: {error_message}",
             LANG_JA: "ホットキーを設定できませんでした: {error_message}"
         },
+        "action_description_autotyper": { # Mo ta chuc nang auto typer
+            LANG_VI: "AutoTyper chính",
+            LANG_EN: "Main AutoTyper",
+            LANG_JA: "メインオートタイパー"
+        },
+        "action_description_record": { # Mo ta chuc nang ghi
+            LANG_VI: "Ghi thao tác",
+            LANG_EN: "Record actions",
+            LANG_JA: "操作の記録"
+        },
+        "action_description_play": { # Mo ta chuc nang phat
+            LANG_VI: "Phát thao tác",
+            LANG_EN: "Play actions",
+            LANG_JA: "操作の再生"
+        },
+        "msgbox_hotkey_conflict_title": { # Tieu de khi hotkey trung
+            LANG_VI: "Xung đột Hotkey",
+            LANG_EN: "Hotkey Conflict",
+            LANG_JA: "ホットキーの競合"
+        },
+        "msgbox_hotkey_conflict_text": { # Noi dung khi hotkey trung
+            LANG_VI: "Hotkey '{new_hotkey_name}' đã được sử dụng cho '{action_description}'. Vui lòng chọn phím khác.",
+            LANG_EN: "Hotkey '{new_hotkey_name}' is already in use for '{action_description}'. Please choose a different key.",
+            LANG_JA: "ホットキー '{new_hotkey_name}' は既に '{action_description}' で使用されています。別のキーを選択してください。"
+        },
         # --- Record Feature Translations ---
         "button_advanced_mode": {
             LANG_VI: "Nâng cao",

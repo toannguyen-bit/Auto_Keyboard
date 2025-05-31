@@ -2,9 +2,9 @@
 set SCRIPT_DIR=%~dp0
 cd /D "%SCRIPT_DIR%.."
 
-
 set VENV_NAME=venv
-
+set PYTHON_EXE=%VENV_NAME%\Scripts\python.exe
+set PYTHONW_EXE=%VENV_NAME%\Scripts\pythonw.exe
 
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -30,16 +30,15 @@ if not exist "%VENV_NAME%\Scripts\activate.bat" (
     echo Virtual environment created.
     echo ==============================
 )
+
 echo ======================================
 echo Activating virtual environment...
 echo ======================================
-
 call "%VENV_NAME%\Scripts\activate.bat"
 if %errorlevel% neq 0 (
     echo ======================================
     echo Failed to activate virtual environment.
     echo ======================================
-
     pause
     exit /b 1
 )
@@ -47,28 +46,29 @@ if %errorlevel% neq 0 (
 echo ======================================
 echo Installing dependencies from requirements.txt...
 echo ======================================
-
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo ======================================
     echo Failed to install dependencies.
     echo ======================================
-
     pause
     exit /b 1
 )
 
 echo ======================================
 echo Running AutoKeyboard application...
+echo (Terminal will close shortly)
 echo ======================================
 
 
-python main.py
+if exist "%PYTHONW_EXE%" (
+    start "AutoKeyboard" /B "%PYTHONW_EXE%" main.py
+) else (
 
-echo ======================================
-echo Deactivating virtual environment (script will exit)...
-echo ======================================
+    start "AutoKeyboard" /B "%PYTHON_EXE%" main.py
+)
 
-echo ==============================
-echo done
-echo ==============================
+timeout /t 1 /nobreak > nul
+
+
+exit /b 0

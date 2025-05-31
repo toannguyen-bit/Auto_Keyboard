@@ -959,7 +959,7 @@ class AutoTyperWindow(QMainWindow):
 
         # Neu dang set mot hotkey khac -> bao loi
         if self.is_setting_hotkey_type != 0:
-            QMessageBox.warning(self, "Cài đặt Hotkey", "Đang trong quá trình cài đặt một hotkey khác. Vui lòng hoàn tất hoặc hủy thao tác đó trước.") #TODO: Translate
+            QMessageBox.warning(self, Translations.get("msgbox_error_set_hotkey_title"), "Đang trong quá trình cài đặt một hotkey khác. Vui lòng hoàn tất hoặc hủy thao tác đó trước.") #TODO: Translate this
             return
 
         self.is_setting_hotkey_type = hotkey_type_flag # Dat co dang set hotkey nao
@@ -1000,10 +1000,42 @@ class AutoTyperWindow(QMainWindow):
     def _handle_new_hotkey_captured_generic(self, hotkey_type_captured, key_obj, key_name):
         # Chi xu ly neu dung loai hotkey dang set
         if self.is_setting_hotkey_type != hotkey_type_captured:
-            # Day la truong hop hy huu, listener_operation_finished se reset is_setting_hotkey_type
             return
 
-        # Hien thong bao hotkey da duoc dat
+        conflict_detected = False
+        conflicting_action_description = ""
+
+        # Ktra xung dot voi hotkey AutoTyper chinh
+        if hotkey_type_captured != self.SETTING_MAIN_HOTKEY and \
+           self.current_hotkey and key_obj == self.current_hotkey:
+            conflict_detected = True
+            conflicting_action_description = Translations.get("action_description_autotyper")
+
+        # Ktra xung dot voi hotkey Ghi
+        if not conflict_detected and \
+           hotkey_type_captured != self.SETTING_START_RECORD_HOTKEY and \
+           self.current_start_record_hotkey and key_obj == self.current_start_record_hotkey:
+            conflict_detected = True
+            conflicting_action_description = Translations.get("action_description_record")
+
+        # Ktra xung dot voi hotkey Phat
+        if not conflict_detected and \
+           hotkey_type_captured != self.SETTING_PLAY_RECORD_HOTKEY and \
+           self.current_play_record_hotkey and key_obj == self.current_play_record_hotkey:
+            conflict_detected = True
+            conflicting_action_description = Translations.get("action_description_play")
+
+        if conflict_detected:
+            error_msg = Translations.get("msgbox_hotkey_conflict_text",
+                                         new_hotkey_name=key_name,
+                                         action_description=conflicting_action_description)
+            QMessageBox.warning(self,
+                                Translations.get("msgbox_hotkey_conflict_title"),
+                                error_msg)
+            # Worker lang nghe se tu dung, signal finished se goi _finish_set_hotkey_process
+            return
+
+        # Neu ko co xung dot, tiep tuc
         new_hotkey_name_trans = Translations.get("msgbox_hotkey_set_text", new_hotkey_name=key_name)
         QMessageBox.information(self, Translations.get("msgbox_hotkey_set_title"), new_hotkey_name_trans)
 
@@ -1011,11 +1043,11 @@ class AutoTyperWindow(QMainWindow):
         if hotkey_type_captured == self.SETTING_MAIN_HOTKEY:
             self.current_hotkey = key_obj; self.current_hotkey_name = key_name
             self.lbl_current_hotkey_value.setText(key_name)
-            if self.view_stack.currentWidget() == self.autotyper_page: # Cap nhat title bar neu o trang autotyper
+            if self.view_stack.currentWidget() == self.autotyper_page: 
                 self.custom_title_bar.setTitle(Translations.get("title_bar_text", hotkey=key_name))
-            self.btn_start.setText(Translations.get("button_start", hotkey_name=key_name)) # Cap nhat text nut start
-            if not self.is_typing_active : self.status_label.setText(Translations.get("status_ready", hotkey_name=key_name)) # Cap nhat status
-            self.init_main_hotkey_listener() # Khoi tao lai listener cho hotkey moi
+            self.btn_start.setText(Translations.get("button_start", hotkey_name=key_name)) 
+            if not self.is_typing_active : self.status_label.setText(Translations.get("status_ready", hotkey_name=key_name)) 
+            self.init_main_hotkey_listener() 
         elif hotkey_type_captured == self.SETTING_START_RECORD_HOTKEY:
             self.current_start_record_hotkey = key_obj; self.current_start_record_hotkey_name = key_name
             self.lbl_current_start_record_hotkey_value.setText(key_name)
@@ -1028,7 +1060,7 @@ class AutoTyperWindow(QMainWindow):
             self.btn_play_record.setText(Translations.get("button_play_recording", hotkey_name=key_name))
             if not self.is_playing_recording and not self.is_recording and len(self.recorded_events) > 0: self.recorder_status_label.setText(Translations.get("status_player_ready", hotkey_name=key_name))
             self.init_play_record_hotkey_listener()
-        # _finish_set_hotkey_process se duoc goi boi listener_operation_finished
+        # _finish_set_hotkey_process se dc goi boi listener_operation_finished
 
     @Slot(int, str)
     def _handle_set_hotkey_error_generic(self, hotkey_type_errored, error_message):
@@ -1066,8 +1098,8 @@ class AutoTyperWindow(QMainWindow):
     @Slot()
     def toggle_recording_process(self):
         if self.is_setting_hotkey_type != 0 or self.view_stack.currentWidget() != self.recorder_page: return
-        if self.is_playing_recording:
-            QMessageBox.information(self, Translations.get("label_record_play_group"), "Đang phát, không thể ghi.") #TODO: Translate
+        if self.is_playing_recording: # Neu dang phat
+            QMessageBox.information(self, Translations.get("label_record_play_group"), Translations.get("msgbox_hotkey_conflict_text", new_hotkey_name=self.current_start_record_hotkey_name, action_description=Translations.get("action_description_play") + " (đang chạy)")) #TODO: Translate better
             return
 
         if self.is_recording:
@@ -1187,8 +1219,8 @@ class AutoTyperWindow(QMainWindow):
     @Slot()
     def toggle_playing_process(self):
         if self.is_setting_hotkey_type != 0 or self.view_stack.currentWidget() != self.recorder_page: return
-        if self.is_recording:
-            QMessageBox.information(self, Translations.get("label_record_play_group"), "Đang ghi, không thể phát.") #TODO: Translate
+        if self.is_recording: # Neu dang ghi
+            QMessageBox.information(self, Translations.get("label_record_play_group"), Translations.get("msgbox_hotkey_conflict_text", new_hotkey_name=self.current_play_record_hotkey_name, action_description=Translations.get("action_description_record") + " (đang chạy)")) #TODO: Translate better
             return
 
         if self.is_playing_recording:
