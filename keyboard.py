@@ -1,12 +1,13 @@
+# keyboard.py
 import sys
 import time
 import threading
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QMessageBox, QFormLayout,
-    QSizePolicy, QFrame, QStackedLayout, QSizeGrip # Them QSizeGrip
+    QSizePolicy, QFrame, QStackedLayout 
 )
-from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPoint, QSize
+from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPoint, QSize, QRect # Them QRect
 from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent
 from pynput.keyboard import Controller as PynputController, Listener as PynputListener, Key as PynputKey
 import os
@@ -69,7 +70,7 @@ class HotkeyListenerWorker(QObject):
     def request_stop(self):self._keep_listening=False;PynputListener.stop(self._pynput_listener)if self._pynput_listener else None
 
 
-# --- Custom Title Bar (ko đổi) ---
+# --- Custom Title Bar (logic di chuyen se chuyen len QMainWindow) ---
 class CustomTitleBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -85,21 +86,30 @@ class CustomTitleBar(QWidget):
         layout.addWidget(self.btn_maximize_restore)
         self.btn_close = QPushButton("✕"); self.btn_close.setObjectName("closeButton"); self.btn_close.setFixedSize(30, 30); self.btn_close.clicked.connect(self.window().close)
         layout.addWidget(self.btn_close)
-        self._drag_pos = None
+        # _drag_pos se duoc quan ly boi AutoTyperWindow
     def _toggle_maximize_restore(self):
         if self.window().isMaximized(): self.window().showNormal(); self.btn_maximize_restore.setText("□")
         else: self.window().showMaximized(); self.btn_maximize_restore.setText("▫")
-    def mousePressEvent(self, event: QMouseEvent):
-        if event.button() == Qt.LeftButton: self._drag_pos = event.globalPosition().toPoint() - self.window().frameGeometry().topLeft(); event.accept()
-    def mouseMoveEvent(self, event: QMouseEvent):
-        if self._drag_pos is not None and event.buttons() == Qt.LeftButton: self.window().move(event.globalPosition().toPoint() - self._drag_pos); event.accept()
-    def mouseReleaseEvent(self, event: QMouseEvent): self._drag_pos = None; event.accept()
+    # mousePressEvent, mouseMoveEvent, mouseReleaseEvent da duoc chuyen len AutoTyperWindow
     def setTitle(self, title): self.title_label.setText(title)
 
 # --- Cửa sổ chính ---
 class AutoTyperWindow(QMainWindow):
     DEFAULT_HOTKEY = PynputKey.f9
     DEFAULT_HOTKEY_NAME = "F9"
+
+    RESIZE_MARGIN = 10 # px, do rong vung resize
+
+    NO_EDGE = 0x0
+    TOP_EDGE = 0x1
+    BOTTOM_EDGE = 0x2
+    LEFT_EDGE = 0x4
+    RIGHT_EDGE = 0x8
+    # Cac goc la ket hop cua cac canh (bitmask)
+    TOP_LEFT_CORNER = TOP_EDGE | LEFT_EDGE
+    TOP_RIGHT_CORNER = TOP_EDGE | RIGHT_EDGE
+    BOTTOM_LEFT_CORNER = BOTTOM_EDGE | LEFT_EDGE
+    BOTTOM_RIGHT_CORNER = BOTTOM_EDGE | RIGHT_EDGE
 
     def __init__(self):
         super().__init__()
@@ -125,34 +135,46 @@ class AutoTyperWindow(QMainWindow):
         
         self.original_pixmap = QPixmap(self.background_image_path)
 
+        # Bien cho viec di chuyen va resize cua so
+        self._is_dragging = False
+        self._drag_start_pos = QPoint() # Vi tri bat dau keo (global - frame.topLeft())
+        self._is_resizing = False
+        self._resize_edge = self.NO_EDGE
+        self._resize_start_mouse_pos = QPoint() # Vi tri chuot bat dau resize (global)
+        self._resize_start_window_geometry = QRect() # Geometry cua so khi bat dau resize
+
         self.init_ui()
         self.apply_styles()
         self.init_hotkey_listener()
         
         self.custom_title_bar.setTitle(f"AutoTyper Poetic - Hotkey: {self.DEFAULT_HOTKEY_NAME}")
+        self.setMouseTracking(True) # Bat theo doi chuot de cap nhat cursor va xu ly resize/drag
 
     def init_ui(self):
         self.main_container_widget = QWidget()
         self.main_container_widget.setObjectName("mainContainerWidget")
         self.setCentralWidget(self.main_container_widget)
+        # self.main_container_widget.setMouseTracking(True) # Cho phep event pass len window
 
         overall_layout = QVBoxLayout(self.main_container_widget)
         overall_layout.setContentsMargins(0,0,0,0)
         overall_layout.setSpacing(0)
 
         self.custom_title_bar = CustomTitleBar(self)
+        # self.custom_title_bar.setMouseTracking(True) # Cho phep event pass len window
         overall_layout.addWidget(self.custom_title_bar)
 
-        main_area_widget = QWidget() # Widget moi de chua stacked_layout va size_grip
-        main_area_layout = QVBoxLayout(main_area_widget) # Layout cho main_area_widget
+        main_area_widget = QWidget() 
+        # main_area_widget.setMouseTracking(True) # Cho phep event pass len window
+        main_area_layout = QVBoxLayout(main_area_widget) 
         main_area_layout.setContentsMargins(0,0,0,0)
         main_area_layout.setSpacing(0)
-
 
         main_area_stacked_layout = QStackedLayout()
         main_area_stacked_layout.setStackingMode(QStackedLayout.StackingMode.StackAll)
         
         self.background_label = QLabel()
+        # self.background_label.setMouseTracking(True) # Cho phep event pass len window
         self.background_label.setObjectName("backgroundLabel")
         if self.original_pixmap.isNull():
             print(f"Loi: Khong the tai anh nen tu '{self.background_image_path}'")
@@ -166,9 +188,10 @@ class AutoTyperWindow(QMainWindow):
         main_area_stacked_layout.addWidget(self.background_label)
 
         content_widget = QWidget()
+        # content_widget.setMouseTracking(True) # Cho phep event pass len window
         content_widget.setObjectName("contentWidget")
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(35, 20, 35, 25) # Dieu chinh padding
+        content_layout.setContentsMargins(35, 20, 35, 25) 
         content_layout.setSpacing(18)
 
         input_frame = QFrame()
@@ -187,7 +210,7 @@ class AutoTyperWindow(QMainWindow):
         content_layout.addWidget(input_frame)
 
         button_layout_container = QWidget()
-        button_layout = QHBoxLayout(button_layout_container); button_layout.setContentsMargins(0,10,0,0) # Them margin top cho nut
+        button_layout = QHBoxLayout(button_layout_container); button_layout.setContentsMargins(0,10,0,0) 
         self.btn_start = QPushButton(f"Start ({self.current_hotkey_name})"); self.btn_start.setObjectName("startButton"); self.btn_start.clicked.connect(self.toggle_typing_process)
         self.btn_stop = QPushButton("Stop"); self.btn_stop.setObjectName("stopButton"); self.btn_stop.setEnabled(False); self.btn_stop.clicked.connect(self.stop_typing_process)
         button_layout.addStretch(); button_layout.addWidget(self.btn_start); button_layout.addWidget(self.btn_stop); button_layout.addStretch()
@@ -198,24 +221,13 @@ class AutoTyperWindow(QMainWindow):
         
         main_area_stacked_layout.addWidget(content_widget)
         main_area_stacked_layout.setCurrentWidget(content_widget)
+        main_area_layout.addLayout(main_area_stacked_layout) 
 
-        main_area_layout.addLayout(main_area_stacked_layout) # Them stacked layout vao main_area_layout
-
-        # Them QSizeGrip vao goc duoi phai cua main_area_widget
-        # QSizeGrip can mot layout de dat no dung vi tri
-        bottom_right_layout_for_grip = QHBoxLayout() # Layout de day grip ve ben phai
-        bottom_right_layout_for_grip.addStretch()
-        self.size_grip = QSizeGrip(main_area_widget) # Parent la main_area_widget
-        self.size_grip.setFixedSize(16, 16) # Kich thuoc grip
-        self.size_grip.setObjectName("sizeGrip")
-        bottom_right_layout_for_grip.addWidget(self.size_grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-        main_area_layout.addLayout(bottom_right_layout_for_grip) # Them layout chua grip
-
-        overall_layout.addWidget(main_area_widget) # Them main_area_widget (chua ca content va grip) vao layout chinh
-
+        # QSizeGrip da duoc loai bo
+        overall_layout.addWidget(main_area_widget) 
 
     def apply_styles(self):
-        # QSS (gan nhu ko doi, them style cho QSizeGrip)
+        # QSS (loai bo style cho QSizeGrip)
         font_family = "Segoe UI, Arial, sans-serif"
         app_main_container_bg = "rgb(12, 14, 26)"
         title_bar_bg = "rgba(18, 20, 36, 0.85)" 
@@ -256,7 +268,7 @@ class AutoTyperWindow(QMainWindow):
         qss = f"""
             QMainWindow {{ background: transparent; }}
             QWidget#mainContainerWidget {{ background-color: {app_main_container_bg}; border-radius: 10px; }}
-            QLabel#backgroundLabel {{ border-radius: 10px; /* Can bo goc cho label bg */ }}
+            QLabel#backgroundLabel {{ border-radius: 10px; }}
             QWidget#contentWidget {{ background-color: transparent; }}
             QWidget#customTitleBar {{ background-color: {title_bar_bg}; border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom: 1px solid rgba(216, 191, 216, 0.15); }}
             QLabel#titleBarLabel {{ color: {title_bar_text_color}; font-family: "{font_family}"; font-size: 10pt; font-weight: bold; padding-left: 10px; background-color: transparent; }}
@@ -282,8 +294,7 @@ class AutoTyperWindow(QMainWindow):
             QPushButton#stopButton:pressed {{ background-color: {stop_button_pressed_bg}; }}
             QPushButton:disabled {{ background-color: {disabled_bg_color}; color: {disabled_text_color}; border-color: {disabled_border_color}; }}
             QLabel#statusLabel {{ color: {subtext_color}; background-color: {status_bg_color}; border: 1px solid {status_border_color}; border-radius: 9px; padding: 13px; font-size: 9pt; margin-top: 15px; }}
-            QSizeGrip#sizeGrip {{ background-color: transparent; /* Hoac mot mau nhe nhang */ }}
-            /* Style cho QMessageBox */
+            /* QSizeGrip da bi xoa */
             QMessageBox {{ background-color: {msgbox_bg_color}; font-family: "{font_family}"; border-radius: 8px; border: 1px solid {input_frame_border_color}; }}
             QMessageBox QLabel {{ color: {msgbox_text_color}; font-size: 10pt; background-color: transparent;}}
             QMessageBox QPushButton {{ background-color: {msgbox_button_bg}; border-color: {msgbox_button_border}; color: {button_text_color}; padding: 9px 20px; border-radius: 9px; min-width: 85px; }}
@@ -293,11 +304,6 @@ class AutoTyperWindow(QMainWindow):
     
     def _update_background_pixmap(self):
         if hasattr(self, 'background_label') and not self.original_pixmap.isNull():
-            # Kich thuoc muc tieu cho background_label la kich thuoc cua main_area_widget
-            # main_area_widget bao gom stacked_layout (chua bg_label) va size_grip
-            # Do size_grip nam ngoai stacked_layout, bg_label se co gian theo stacked_layout
-            # Stacked layout se co gian theo main_area_widget, main_area_widget co gian theo QMainWindow (tru titlebar)
-            
             main_area_height = self.main_container_widget.height() - self.custom_title_bar.height()
             main_area_width = self.main_container_widget.width()
             
@@ -312,9 +318,137 @@ class AutoTyperWindow(QMainWindow):
             )
             self.background_label.setPixmap(scaled_pixmap)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event): # Su kien resize cua so
         self._update_background_pixmap()
         super().resizeEvent(event)
+
+    # --- Xu ly di chuyen va resize cua so ---
+    def _get_current_resize_edge(self, local_pos: QPoint) -> int:
+        """Xđ canh/goc chuot dang tro toi de resize (toa do local)."""
+        edge = self.NO_EDGE
+        rect = self.rect() # Kich thuoc cua so hien tai
+
+        if local_pos.x() < self.RESIZE_MARGIN: edge |= self.LEFT_EDGE
+        if local_pos.x() > rect.width() - self.RESIZE_MARGIN: edge |= self.RIGHT_EDGE
+        if local_pos.y() < self.RESIZE_MARGIN: edge |= self.TOP_EDGE
+        if local_pos.y() > rect.height() - self.RESIZE_MARGIN: edge |= self.BOTTOM_EDGE
+        
+        return edge
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.LeftButton:
+            local_pos = event.position().toPoint()
+            global_pos = event.globalPosition().toPoint()
+
+            # Uu tien ktra resize
+            self._resize_edge = self._get_current_resize_edge(local_pos)
+            if self._resize_edge != self.NO_EDGE:
+                self._is_resizing = True
+                self._is_dragging = False 
+                self._resize_start_mouse_pos = global_pos
+                self._resize_start_window_geometry = self.geometry()
+                event.accept()
+                return
+
+            # Neu ko resize, ktra di chuyen cua so (neu chuot tren title bar)
+            if self.custom_title_bar.geometry().contains(local_pos):
+                self._is_dragging = True
+                self._is_resizing = False 
+                self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
+                event.accept()
+                return
+        
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        # Neu dang giu chuot trai
+        if event.buttons() & Qt.LeftButton:
+            if self._is_resizing:
+                current_mouse_pos = event.globalPosition().toPoint()
+                delta = current_mouse_pos - self._resize_start_mouse_pos
+                
+                start_geom = self._resize_start_window_geometry
+                new_geom = QRect(start_geom)
+
+                min_w = self.minimumSize().width()
+                min_h = self.minimumSize().height()
+
+                if self._resize_edge & self.LEFT_EDGE:
+                    new_left = start_geom.left() + delta.x()
+                    new_width = start_geom.width() - delta.x()
+                    if new_width < min_w:
+                        new_width = min_w
+                        new_left = start_geom.right() - min_w # Giu canh phai
+                    new_geom.setLeft(new_left)
+                    new_geom.setWidth(new_width)
+
+                if self._resize_edge & self.RIGHT_EDGE:
+                    new_width = start_geom.width() + delta.x()
+                    if new_width < min_w: new_width = min_w
+                    new_geom.setWidth(new_width)
+
+                if self._resize_edge & self.TOP_EDGE:
+                    new_top = start_geom.top() + delta.y()
+                    new_height = start_geom.height() - delta.y()
+                    if new_height < min_h:
+                        new_height = min_h
+                        new_top = start_geom.bottom() - min_h # Giu canh duoi
+                    new_geom.setTop(new_top)
+                    new_geom.setHeight(new_height)
+
+                if self._resize_edge & self.BOTTOM_EDGE:
+                    new_height = start_geom.height() + delta.y()
+                    if new_height < min_h: new_height = min_h
+                    new_geom.setHeight(new_height)
+                
+                self.setGeometry(new_geom)
+                event.accept()
+                return
+            elif self._is_dragging:
+                self.move(event.globalPosition().toPoint() - self._drag_start_pos)
+                event.accept()
+                return
+
+        # Neu ko giu chuot trai, hoac ko phai resizing/dragging -> cap nhat con tro chuot
+        if not (self._is_resizing or self._is_dragging):
+            local_pos = event.position().toPoint()
+            current_hover_edge = self._get_current_resize_edge(local_pos)
+            
+            is_on_title_bar_main_part = self.custom_title_bar.geometry().contains(local_pos) and \
+                                        current_hover_edge == self.NO_EDGE
+
+            if is_on_title_bar_main_part: # Chuot tren titlebar, ko phai canh resize
+                self.unsetCursor() 
+            elif current_hover_edge == self.TOP_LEFT_CORNER or current_hover_edge == self.BOTTOM_RIGHT_CORNER:
+                self.setCursor(Qt.SizeFDiagCursor)
+            elif current_hover_edge == self.TOP_RIGHT_CORNER or current_hover_edge == self.BOTTOM_LEFT_CORNER:
+                self.setCursor(Qt.SizeBDiagCursor)
+            elif current_hover_edge & self.LEFT_EDGE or current_hover_edge & self.RIGHT_EDGE:
+                self.setCursor(Qt.SizeHorCursor)
+            elif current_hover_edge & self.TOP_EDGE or current_hover_edge & self.BOTTOM_EDGE:
+                self.setCursor(Qt.SizeVerCursor)
+            else: # Khong tren canh nao ca
+                self.unsetCursor()
+        
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        if event.button() == Qt.LeftButton:
+            changed_state = False
+            if self._is_resizing:
+                self._is_resizing = False
+                changed_state = True
+            if self._is_dragging:
+                self._is_dragging = False
+                changed_state = True
+            
+            if changed_state:
+                self._resize_edge = self.NO_EDGE 
+                self.unsetCursor() # Reset cursor
+                event.accept()
+                return
+        super().mouseReleaseEvent(event)
+
 
     # --- Cac phuong thuc logic (init_hotkey_listener, toggle_typing_process, ...) giu nguyen ---
     def init_hotkey_listener(self):
