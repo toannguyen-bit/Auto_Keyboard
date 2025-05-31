@@ -14,7 +14,7 @@ from pynput.keyboard import Key as PynputKey, KeyCode
 from core.translations import Translations
 from core.workers import SingleKeyListenerWorker, get_pynput_key_display_name
 from .custom_title_bar import CustomTitleBar
-from .countdown_overlay import CountdownOverlay
+from .countdown_overlay import CountdownOverlay 
 from .constants import (
     RESIZE_MARGIN, NO_EDGE, TOP_EDGE, BOTTOM_EDGE, LEFT_EDGE, RIGHT_EDGE,
     TOP_LEFT_CORNER, TOP_RIGHT_CORNER, BOTTOM_LEFT_CORNER, BOTTOM_RIGHT_CORNER,
@@ -34,15 +34,15 @@ class BaseMainWindow(QMainWindow):
         if os.path.exists(app_icon_path):
             self.setWindowIcon(QIcon(app_icon_path))
 
-        Translations.set_language(Translations.LANG_VI) # Mac dinh, se bi ghi de boi config
+        Translations.set_language(Translations.LANG_VI)
 
-        self.setMinimumSize(700, 600) # Kthuoc min
-        self.resize(850, 700) # Kthuoc default
+        self.setMinimumSize(700, 600)
+        self.resize(850, 700)
 
         self.setWindowFlag(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
-        self.is_setting_hotkey_type = 0 # Loai hotkey dang set
+        self.is_setting_hotkey_type = 0
 
         self.single_key_listener_thread = QThread(self)
         self.single_key_listener_worker = SingleKeyListenerWorker()
@@ -57,11 +57,10 @@ class BaseMainWindow(QMainWindow):
         self._is_resizing = False; self._resize_edge = NO_EDGE
         self._resize_start_mouse_pos = QPoint(); self._resize_start_window_geometry = QRect()
 
-        self.countdown_overlay = None
+        self.countdown_overlay = None # Khoi tao o day
 
-        # Animations
-        self._first_show_animation_done = False # Co cho anim mo
-        self._animation_is_closing_flag = False # Co cho anim dong
+        self._first_show_animation_done = False
+        self._animation_is_closing_flag = False
         self.opacity_animation_open = None
         self.opacity_animation_close = None
 
@@ -303,14 +302,14 @@ class BaseMainWindow(QMainWindow):
 
     def resizeEvent(self, event): self._update_background_pixmap(); super().resizeEvent(event)
 
-    def showEvent(self, event): # Anim mo
+    def showEvent(self, event):
         if not self._first_show_animation_done:
             self._first_show_animation_done = True
 
             if not self.opacity_animation_open:
                 self.opacity_animation_open = QPropertyAnimation(self, b"windowOpacity", self)
-                self.opacity_animation_open.setDuration(350) #ms
-                self.opacity_animation_open.setEasingCurve(QEasingCurve.Type.InOutQuad)
+                self.opacity_animation_open.setDuration(480) # Tang duration
+                self.opacity_animation_open.setEasingCurve(QEasingCurve.Type.InOutSine) # Easing moi
 
             self.setWindowOpacity(0.0)
             self.opacity_animation_open.setStartValue(0.0)
@@ -389,7 +388,7 @@ class BaseMainWindow(QMainWindow):
         if worker and hasattr(worker, 'request_stop'): worker.request_stop()
         if thread and thread.isRunning():
             thread.quit()
-            if not thread.wait(500): # Giam time
+            if not thread.wait(500):
                 thread.terminate()
                 thread.wait(100)
         if hasattr(obj_to_cleanup, worker_attr_name): setattr(obj_to_cleanup, worker_attr_name, None)
@@ -443,51 +442,52 @@ class BaseMainWindow(QMainWindow):
             print(Translations.get("config_saved_error", filepath=self.config_path, error=str(e)))
 
     def show_countdown_overlay(self, text):
-        if not self.countdown_overlay: self.countdown_overlay = CountdownOverlay(None)
+        if not self.countdown_overlay:
+            self.countdown_overlay = CountdownOverlay(None) # Parent la None de thanh cua so rieng
         self.countdown_overlay.setText(text)
-        if not self.countdown_overlay.isVisible():
-            self.countdown_overlay.show(); self.countdown_overlay.activateWindow(); self.countdown_overlay.raise_()
+        self.countdown_overlay.show_animated() # Goi ham moi co animation
+        self.countdown_overlay.activateWindow() # Can de hien thi dung tren cung
+        self.countdown_overlay.raise_()
 
     def hide_countdown_overlay(self):
-        if self.countdown_overlay and self.countdown_overlay.isVisible(): self.countdown_overlay.hide()
+        if self.countdown_overlay and self.countdown_overlay.isVisible():
+            self.countdown_overlay.hide_animated() # Goi ham moi
 
 
-    def closeEvent(self, event): # Anim dong
-        if self._animation_is_closing_flag: # Neu dang trong qua trinh dong boi anim
+    def closeEvent(self, event):
+        if self._animation_is_closing_flag:
             event.accept()
             return
 
-        # Cleanup SingleKeyListenerWorker va Overlay (chi lan dau)
         if self.single_key_listener_worker:
             self.single_key_listener_worker.request_stop_worker_thread()
         if self.single_key_listener_thread:
             self.single_key_listener_thread.quit()
-            # Giam time cho nhanh
-            if not self.single_key_listener_thread.wait(500):
+            if not self.single_key_listener_thread.wait(200): # Giam thoi gian cho
                 self.single_key_listener_thread.terminate()
-                self.single_key_listener_thread.wait(100)
-        self.single_key_listener_worker = None # Set None de tranh loi neu closeEvent goi lai
+                self.single_key_listener_thread.wait(50)
+        self.single_key_listener_worker = None
         self.single_key_listener_thread = None
 
         if self.countdown_overlay:
-            self.countdown_overlay.close()
+            self.countdown_overlay.close() # Dong overlay ngay, ko can anim
             self.countdown_overlay = None
 
         if not self.opacity_animation_close:
             self.opacity_animation_close = QPropertyAnimation(self, b"windowOpacity", self)
-            self.opacity_animation_close.setDuration(250) # ms
-            self.opacity_animation_close.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            self.opacity_animation_close.setDuration(320) # Tang duration
+            self.opacity_animation_close.setEasingCurve(QEasingCurve.Type.InOutSine) # Easing moi
             self.opacity_animation_close.finished.connect(self._handle_close_animation_finished)
 
         if self.opacity_animation_close.state() == QAbstractAnimation.State.Running:
-            self.opacity_animation_close.stop() # Dung anim cu neu co
+            self.opacity_animation_close.stop()
 
         self.opacity_animation_close.setStartValue(self.windowOpacity())
         self.opacity_animation_close.setEndValue(0.0)
         self.opacity_animation_close.start()
-        event.ignore() # Ko dong cua so ngay
+        event.ignore()
 
     @Slot()
     def _handle_close_animation_finished(self):
-        self._animation_is_closing_flag = True # Dat co
-        self.close() # Goi lai closeEvent, luc nay se accept
+        self._animation_is_closing_flag = True
+        self.close()

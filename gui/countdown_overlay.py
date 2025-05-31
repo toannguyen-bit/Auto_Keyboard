@@ -1,6 +1,6 @@
 # gui/countdown_overlay.py
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QApplication
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QAbstractAnimation
 from PySide6.QtGui import QScreen
 
 
@@ -11,10 +11,10 @@ class CountdownOverlay(QWidget):
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.Tool |
-            Qt.WindowType.X11BypassWindowManagerHint # Cho Linux
+            Qt.WindowType.X11BypassWindowManagerHint
         )
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_ShowWithoutActivating) # Khong lay focus khi hien
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0,0,0,0)
@@ -31,17 +31,17 @@ class CountdownOverlay(QWidget):
             }
         """)
         layout.addWidget(self.label)
-        self.setFixedSize(self.label.sizeHint() + QSize(10,10)) # Them padding nho
+        self.setFixedSize(self.label.sizeHint() + QSize(10,10))
+
+        # Anim cho opacity
+        self.opacity_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.opacity_animation.setEasingCurve(QEasingCurve.Type.InOutSine) # Easing mem mai
+
 
     def setText(self, text):
         self.label.setText(text)
-        self.adjustSize() # Tinh lai kich thuoc
-
-        # Can giua man hinh
-        target_screen = self.screen()
-        if not target_screen and QApplication.instance():
-            target_screen = QApplication.primaryScreen()
-        self.centerOnScreen(target_screen)
+        self.adjustSize()
+        self.centerOnScreen()
 
 
     def centerOnScreen(self, target_screen=None):
@@ -54,5 +54,42 @@ class CountdownOverlay(QWidget):
         if current_screen_to_use:
             screen_geometry = current_screen_to_use.geometry()
             x = (screen_geometry.width() - self.width()) // 2
-            y = (screen_geometry.height() - self.height()) // 3 # Hoi lech len tren
+            y = (screen_geometry.height() - self.height()) // 3
             self.move(screen_geometry.x() + x, screen_geometry.y() + y)
+
+    def show_animated(self):
+        if self.opacity_animation.state() == QAbstractAnimation.State.Running:
+            self.opacity_animation.stop()
+
+        self.setWindowOpacity(0.0) # Bat dau tu mo
+        self.show() # Phai show truoc khi anim opacity
+        
+        self.opacity_animation.setDuration(220) # Thoi gian fade in
+        self.opacity_animation.setStartValue(0.0)
+        self.opacity_animation.setEndValue(1.0)
+        self.opacity_animation.start()
+
+    def hide_animated(self):
+        if not self.isVisible():
+            return
+        if self.opacity_animation.state() == QAbstractAnimation.State.Running:
+            self.opacity_animation.stop()
+
+        self.opacity_animation.setDuration(180) # Thoi gian fade out
+        self.opacity_animation.setStartValue(self.windowOpacity()) # Tu opacity hien tai
+        self.opacity_animation.setEndValue(0.0)
+        
+        # Dam bao disconnect slot cu truoc khi connect moi
+        try: self.opacity_animation.finished.disconnect(self._on_hide_animation_finished)
+        except RuntimeError: pass # Neu chua connect
+        self.opacity_animation.finished.connect(self._on_hide_animation_finished)
+        
+        self.opacity_animation.start()
+
+    def _on_hide_animation_finished(self):
+        # Quan trong: disconnect de tranh goi lai nhieu lan hoac loi
+        try: self.opacity_animation.finished.disconnect(self._on_hide_animation_finished)
+        except RuntimeError: pass
+        
+        self.hide()
+        self.setWindowOpacity(1.0) # Reset opacity cho lan show sau
