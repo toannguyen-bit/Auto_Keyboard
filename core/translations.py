@@ -186,6 +186,152 @@ class Translations:
             LANG_VI: "Không thể đặt hotkey: {error_message}",
             LANG_EN: "Could not set hotkey: {error_message}",
             LANG_JA: "ホットキーを設定できませんでした: {error_message}"
+        },
+        # --- Record Feature Translations ---
+        "button_advanced_mode": {
+            LANG_VI: "Nâng cao",
+            LANG_EN: "Advanced",
+            LANG_JA: "高度な設定"
+        },
+        "button_autotyper_mode": {
+            LANG_VI: "AutoTyper",
+            LANG_EN: "AutoTyper",
+            LANG_JA: "オートタイパー"
+        },
+        "label_record_play_group": {
+            LANG_VI: "Ghi & Phát Thao Tác",
+            LANG_EN: "Record & Play Actions",
+            LANG_JA: "操作の記録と再生"
+        },
+        "label_start_record_hotkey": {
+            LANG_VI: "Hotkey Ghi/Dừng:",
+            LANG_EN: "Record/Stop Hotkey:",
+            LANG_JA: "録画/停止ホットキー:"
+        },
+        "button_set_start_record_hotkey": {
+            LANG_VI: "Đổi Hotkey Ghi",
+            LANG_EN: "Change Rec. Hotkey",
+            LANG_JA: "録画ホットキー変更"
+        },
+        "label_play_record_hotkey": {
+            LANG_VI: "Hotkey Phát/Dừng:",
+            LANG_EN: "Play/Stop Hotkey:",
+            LANG_JA: "再生/停止ホットキー:"
+        },
+        "button_set_play_record_hotkey": {
+            LANG_VI: "Đổi Hotkey Phát",
+            LANG_EN: "Change Play Hotkey",
+            LANG_JA: "再生ホットキー変更"
+        },
+        "button_start_recording": { # hotkey_name
+            LANG_VI: "Bắt đầu Ghi ({hotkey_name})",
+            LANG_EN: "Start Recording ({hotkey_name})",
+            LANG_JA: "録画開始 ({hotkey_name})"
+        },
+        "button_stop_recording": { # hotkey_name
+            LANG_VI: "Dừng Ghi ({hotkey_name})",
+            LANG_EN: "Stop Recording ({hotkey_name})",
+            LANG_JA: "録画停止 ({hotkey_name})"
+        },
+        "button_play_recording": { # hotkey_name
+            LANG_VI: "Phát Bản Ghi ({hotkey_name})",
+            LANG_EN: "Play Recording ({hotkey_name})",
+            LANG_JA: "再生 ({hotkey_name})"
+        },
+         "button_stop_playing_recording": { # hotkey_name
+            LANG_VI: "Dừng Phát ({hotkey_name})",
+            LANG_EN: "Stop Playing ({hotkey_name})",
+            LANG_JA: "再生停止 ({hotkey_name})"
+        },
+        "button_clear_recording": {
+            LANG_VI: "Xóa Bản Ghi",
+            LANG_EN: "Clear Recording",
+            LANG_JA: "録画を消去"
+        },
+        "status_recorder_idle": { # hotkey_name
+            LANG_VI: "Sẵn sàng. Nhấn '{hotkey_name}' để ghi.",
+            LANG_EN: "Ready. Press '{hotkey_name}' to record.",
+            LANG_JA: "準備完了。'{hotkey_name}' を押して録画開始。"
+        },
+        "status_recorder_countdown": { # seconds
+            LANG_VI: "Bắt đầu ghi sau: {seconds}...",
+            LANG_EN: "Starting recording in: {seconds}...",
+            LANG_JA: "録画開始まで: {seconds}..."
+        },
+        "status_recorder_recording": { # hotkey_name
+            LANG_VI: "Đang ghi... Nhấn '{hotkey_name}' để dừng.",
+            LANG_EN: "Recording... Press '{hotkey_name}' to stop.",
+            LANG_JA: "録画中... '{hotkey_name}' を押して停止。"
+        },
+        "status_recorder_stopped": { # hotkey_name
+            LANG_VI: "Đã dừng ghi. Nhấn '{hotkey_name}' để ghi lại.",
+            LANG_EN: "Recording stopped. Press '{hotkey_name}' to record again.",
+            LANG_JA: "録画停止。'{hotkey_name}' を押して再録画。"
+        },
+        "status_player_playing": { # current_action, total_actions, hotkey_name
+            LANG_VI: "Đang phát... ({current_action}/{total_actions}). Nhấn '{hotkey_name}' để dừng.",
+            LANG_EN: "Playing... ({current_action}/{total_actions}). Press '{hotkey_name}' to stop.",
+            LANG_JA: "再生中... ({current_action}/{total_actions})。'{hotkey_name}' を押して停止。"
+        },
+        "status_player_stopped": { # hotkey_name
+            LANG_VI: "Đã dừng phát. Nhấn '{hotkey_name}' để phát lại.",
+            LANG_EN: "Playback stopped. Press '{hotkey_name}' to play again.",
+            LANG_JA: "再生停止。'{hotkey_name}' を押して再再生。"
+        },
+        "status_player_ready": { # hotkey_name
+            LANG_VI: "Sẵn sàng phát. Nhấn '{hotkey_name}' để phát.",
+            LANG_EN: "Ready to play. Press '{hotkey_name}' to play.",
+            LANG_JA: "再生準備完了。'{hotkey_name}' を押して再生。"
+        },
+        "table_header_key": {
+            LANG_VI: "Phím",
+            LANG_EN: "Key",
+            LANG_JA: "キー"
+        },
+        "table_header_action": {
+            LANG_VI: "Hành động",
+            LANG_EN: "Action",
+            LANG_JA: "アクション"
+        },
+        "table_header_delay": {
+            LANG_VI: "Trễ (ms)",
+            LANG_EN: "Delay (ms)",
+            LANG_JA: "遅延 (ミリ秒)"
+        },
+        "action_press": {
+            LANG_VI: "Nhấn",
+            LANG_EN: "Press",
+            LANG_JA: "押す"
+        },
+        "action_release": {
+            LANG_VI: "Thả",
+            LANG_EN: "Release",
+            LANG_JA: "離す"
+        },
+        "msgbox_no_recording_title": {
+            LANG_VI: "Không có Bản ghi",
+            LANG_EN: "No Recording",
+            LANG_JA: "記録なし"
+        },
+        "msgbox_no_recording_text": {
+            LANG_VI: "Chưa có thao tác nào được ghi lại để phát.",
+            LANG_EN: "No actions have been recorded to play.",
+            LANG_JA: "再生する記録された操作はありません。"
+        },
+        "msgbox_confirm_clear_recording_title": {
+            LANG_VI: "Xác nhận Xóa",
+            LANG_EN: "Confirm Clear",
+            LANG_JA: "クリアの確認"
+        },
+        "msgbox_confirm_clear_recording_text": {
+            LANG_VI: "Bạn có chắc muốn xóa toàn bộ bản ghi hiện tại không?",
+            LANG_EN: "Are you sure you want to clear the current recording?",
+            LANG_JA: "現在の記録をすべてクリアしてもよろしいですか？"
+        },
+        "recorder_status_label_default": {
+            LANG_VI: "Trạng thái ghi/phát.",
+            LANG_EN: "Recorder/Player status.",
+            LANG_JA: "録画/再生ステータス。"
         }
     }
     current_lang = LANG_VI 
