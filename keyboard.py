@@ -9,8 +9,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot
 from PySide6.QtGui import QFont
 from pynput.keyboard import Controller as PynputController, Listener as PynputListener, Key as PynputKey
+import os # Them os de lay duong dan
 
-# --- Worker gõ phím ---
+# --- Worker gõ phím (ko đổi) ---
 class AutoTyperWorker(QObject):
     update_status_signal = Signal(str)
     typing_finished_signal = Signal()
@@ -30,17 +31,14 @@ class AutoTyperWorker(QObject):
         try:
             if not self.text_to_type:
                 self.error_signal.emit("Vui lòng nhập văn bản/phím cần nhấn.")
-                # self.typing_finished_signal.emit() # Sẽ được emit trong finally
                 return
 
             if self.interval_s <= 0:
                 self.error_signal.emit("Khoảng thời gian phải lớn hơn 0.")
-                # self.typing_finished_signal.emit()
                 return
 
             if self.repetitions < 0:
                 self.error_signal.emit("Số lần lặp lại phải là số không âm.")
-                # self.typing_finished_signal.emit()
                 return
 
             count = 0
@@ -48,7 +46,6 @@ class AutoTyperWorker(QObject):
             start_time = time.perf_counter()
             while time.perf_counter() - start_time < initial_delay:
                 if not self._is_running_request:
-                    # self.typing_finished_signal.emit()
                     return
                 time.sleep(0.05)
 
@@ -85,13 +82,9 @@ class AutoTyperWorker(QObject):
                 if not self._is_running_request:
                     break
             
-            # self.typing_finished_signal.emit() # Sẽ được emit trong finally
-
         except Exception as e:
             self.error_signal.emit(f"Lỗi trong quá trình chạy: {str(e)}")
-            # self.typing_finished_signal.emit()
         finally:
-            # Luôn emit finished_signal để đảm bảo thread và worker được dọn dẹp
             self.typing_finished_signal.emit()
 
 
@@ -99,7 +92,7 @@ class AutoTyperWorker(QObject):
     def request_stop(self):
         self._is_running_request = False
 
-# --- Worker lắng nghe Hotkey ---
+# --- Worker lắng nghe Hotkey (ko đổi) ---
 class HotkeyListenerWorker(QObject):
     hotkey_pressed_signal = Signal()
 
@@ -112,30 +105,24 @@ class HotkeyListenerWorker(QObject):
     @Slot()
     def run(self):
         def on_press(key):
-            # print(f"Hotkey debug: Key pressed: {key}") # DEBUG
             if not self._keep_listening:
                 return False 
             try:
                 if key == self.hotkey_to_listen:
-                    # print(f"Hotkey debug: {self.hotkey_to_listen} detected, emitting signal.") # DEBUG
                     self.hotkey_pressed_signal.emit()
             except AttributeError:
                 pass 
             return self._keep_listening
 
-        # print("Hotkey debug: Listener starting...") # DEBUG
         self._pynput_listener = PynputListener(on_press=on_press)
         self._pynput_listener.start() 
-        self._pynput_listener.join()
-        # print("Hotkey debug: Listener joined/stopped.") # DEBUG
-
+        self._pynput_listener.join()  
 
     @Slot()
     def request_stop(self):
         self._keep_listening = False
         if self._pynput_listener:
-            PynputListener.stop(self._pynput_listener) # an toàn thread
-            # print("Hotkey debug: Listener stop requested.") # DEBUG
+            PynputListener.stop(self._pynput_listener)
 
 # --- Cửa sổ chính của ứng dụng ---
 class AutoTyperWindow(QMainWindow):
@@ -144,8 +131,12 @@ class AutoTyperWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        # Lay duong dan den thu muc chua script
+        self.base_path = os.path.dirname(os.path.abspath(__file__))
+        self.background_image_path = os.path.join(self.base_path, "stellar.jpg").replace("\\", "/") # Ten file bg
+
         self.setWindowTitle(f"AutoTyper Poetic - Hotkey: {self.DEFAULT_HOTKEY_NAME}")
-        self.setMinimumSize(480, 360)
+        self.setMinimumSize(520, 400) # Tang k.thuoc chut cho bg
 
         self.is_typing_active = False
         self.current_hotkey = self.DEFAULT_HOTKEY
@@ -161,22 +152,21 @@ class AutoTyperWindow(QMainWindow):
         self.init_hotkey_listener()
 
     def init_ui(self):
-        # K.trúc UI chính (ko đổi nhiều)
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
-        main_widget.setObjectName("mainWidget")
+        main_widget.setObjectName("mainWidget") # Quan trong cho QSS bg
 
         app_layout = QVBoxLayout(main_widget)
-        app_layout.setContentsMargins(20, 20, 20, 20)
-        app_layout.setSpacing(15)
+        app_layout.setContentsMargins(25, 25, 25, 25) # Tang padding
+        app_layout.setSpacing(18)
 
         input_frame = QFrame()
         input_frame.setObjectName("inputFrame")
         form_layout = QFormLayout(input_frame)
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
-        form_layout.setHorizontalSpacing(10)
-        form_layout.setVerticalSpacing(12)
+        form_layout.setHorizontalSpacing(12)
+        form_layout.setVerticalSpacing(15)
 
         self.entry_text = QLineEdit()
         self.entry_text.setPlaceholderText("Nhập văn bản hoặc <key_name>...")
@@ -224,34 +214,179 @@ class AutoTyperWindow(QMainWindow):
         app_layout.addWidget(self.status_label)
 
     def apply_styles(self):
-        # Áp dụng QSS (ko đổi)
         font_family = "Segoe UI, Arial, sans-serif"
+        
+        # --- MAU SAC ---
+        # Nen chinh app (tuong tu --background-color)
+        app_bg_color = "rgb(12, 14, 26)"
+        # Nen widget chinh (co the la mainWidget hoac QMainWindow neu muon full bg)
+        main_widget_bg_color = f"url({self.background_image_path})" # Them background image
+        # Nen cho input frame (tuong tu --card-background-rgb voi alpha)
+        input_frame_bg_color = "rgba(30, 30, 46, 0.85)" # Tang alpha de ro hon tren bg
+        input_frame_border_color = "rgba(216, 191, 216, 0.25)" # --highlight-color-poetic
+        # Chu chinh
+        text_color = "rgb(230, 230, 230)" # --text-color-poetic
+        # Chu phu, placeholder
+        subtext_color = "rgb(192, 192, 192)" # --subtext-color-poetic
+        # Input field
+        input_bg_color = "rgba(25, 25, 38, 0.9)" # Dam hon chut, gan giong app_bg_color
+        input_border_color = "rgba(216, 191, 216, 0.4)"
+        input_focus_border_color = "rgb(216, 191, 216)"
+        input_focus_bg_color = "rgba(30, 30, 46, 0.95)"
+        # Buttons
+        button_text_color = text_color
+        button_bg_color = "rgba(45, 48, 68, 0.8)" # Mau toi hon card-bg
+        button_border_color = "rgba(216, 191, 216, 0.65)"
+        
+        start_button_bg_color = "rgba(255, 170, 170, 0.3)" # --primary-color
+        start_button_border_color = "rgba(255, 170, 170, 0.85)"
+        start_button_hover_bg = "rgba(255, 170, 170, 0.45)"
+        start_button_pressed_bg = "rgba(255, 170, 170, 0.2)"
+
+        stop_button_hover_bg = "rgba(216, 191, 216, 0.45)" # --highlight-color-poetic
+        stop_button_pressed_bg = "rgba(216, 191, 216, 0.25)"
+        
+        disabled_bg_color = "rgba(60, 63, 80, 0.6)"
+        disabled_text_color = "rgba(192, 192, 192, 0.75)"
+        disabled_border_color = "rgba(216, 191, 216, 0.25)"
+        
+        # Status label
+        status_bg_color = "rgba(30, 30, 46, 0.75)"
+        status_border_color = "rgba(69, 71, 90, 0.6)" # --border-color
+        
+        # MessageBox
+        msgbox_bg_color = "rgb(22, 24, 40)" # Dam hon chut so voi input_frame_bg
+        msgbox_text_color = "rgb(220, 220, 220)"
+        msgbox_button_bg = start_button_bg_color
+        msgbox_button_border = start_button_border_color
+        msgbox_button_hover_bg = start_button_hover_bg
+
         qss = f"""
-            QMainWindow {{ background-color: rgb(12, 14, 26); }}
-            QWidget#mainWidget {{ background-color: rgb(18, 20, 36); border-radius: 15px; }}
-            QFrame#inputFrame {{ background-color: rgba(30, 30, 46, 0.7); border-radius: 12px; padding: 15px; border: 1px solid rgba(216, 191, 216, 0.2); }}
-            QLabel {{ color: rgb(230, 230, 230); font-family: "{font_family}"; font-size: 10pt; padding: 2px; }}
-            QLineEdit, QSpinBox {{ background-color: rgba(40, 42, 58, 0.8); color: rgb(220, 220, 220); border: 1px solid rgba(216, 191, 216, 0.3); border-radius: 8px; padding: 8px 10px; font-family: "{font_family}"; font-size: 10pt; min-height: 22px; }}
-            QLineEdit:focus, QSpinBox:focus {{ border: 1.5px solid rgb(216, 191, 216); background-color: rgba(45, 48, 65, 0.9); }}
-            QSpinBox::up-button, QSpinBox::down-button {{ subcontrol-origin: border; subcontrol-position: right; width: 18px; border: 1px solid rgba(216, 191, 216, 0.3); border-radius: 4px; background-color: rgba(60, 63, 80, 0.8); margin: 1px 2px 1px 1px; }}
-            QSpinBox::up-button {{ top: 1px; height: 11px;}} 
-            QSpinBox::down-button {{ bottom: 1px; height: 11px;}}
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{ background-color: rgba(80, 83, 100, 0.9); }}
-            QPushButton {{ color: rgb(230, 230, 230); background-color: rgba(30, 30, 46, 0.8); border: 1.5px solid rgba(216, 191, 216, 0.6); padding: 10px 20px; border-radius: 10px; font-family: "{font_family}"; font-size: 10pt; font-weight: bold; min-width: 120px; }}
-            QPushButton#startButton {{ background-color: rgba(255, 170, 170, 0.25); border-color: rgba(255, 170, 170, 0.8); }}
-            QPushButton#startButton:hover {{ background-color: rgba(255, 170, 170, 0.4); border-color: rgb(255, 170, 170); }}
-            QPushButton#startButton:pressed {{ background-color: rgba(255, 170, 170, 0.2); }}
-            QPushButton#stopButton:hover {{ background-color: rgba(216, 191, 216, 0.4); border-color: rgb(216, 191, 216); }}
-            QPushButton#stopButton:pressed {{ background-color: rgba(216, 191, 216, 0.2); }}
-            QPushButton:disabled {{ background-color: rgba(60, 63, 80, 0.5); color: rgba(192, 192, 192, 0.7); border-color: rgba(216, 191, 216, 0.2); }}
-            QLabel#statusLabel {{ color: rgb(192, 192, 192); background-color: rgba(30, 30, 46, 0.6); border: 1px solid rgba(69, 71, 90, 0.5); border-radius: 8px; padding: 10px; font-size: 9pt; margin-top: 10px; }}
-            QMessageBox {{ background-color: rgb(22, 24, 40); font-family: "{font_family}"; }}
-            QMessageBox QLabel {{ color: rgb(220, 220, 220); font-size: 10pt; }}
-            QMessageBox QPushButton {{ background-color: rgba(255, 170, 170, 0.25); border-color: rgba(255, 170, 170, 0.8); color: rgb(230, 230, 230); padding: 8px 18px; border-radius: 8px; min-width: 80px; }}
-            QMessageBox QPushButton:hover {{ background-color: rgba(255, 170, 170, 0.4); }}
+            QMainWindow {{
+                background-color: {app_bg_color};
+            }}
+            QWidget#mainWidget {{
+                background-image: {main_widget_bg_color};
+                background-repeat: no-repeat;
+                background-position: center;
+                background-attachment: fixed; /* Quan trọng để bg ko cuộn theo nội dung */
+                border-radius: 0px; /* Bỏ bo góc cửa sổ chính nếu dùng full bg */
+            }}
+            QFrame#inputFrame {{
+                background-color: {input_frame_bg_color};
+                border-radius: 12px;
+                padding: 18px; /* Tang padding */
+                border: 1px solid {input_frame_border_color};
+                /* Them box-shadow mo phong */
+                /* Qt ko ho tro box-shadow truc tiep nhu CSS web, day la cach gian tiep */
+                /* Se lam vien day hon. Can nhắc bỏ nếu không đẹp. */
+                /* border-top: 1px solid rgba(255,255,255,0.05); */
+                /* border-left: 1px solid rgba(255,255,255,0.05); */
+            }}
+            QLabel {{
+                color: {text_color};
+                font-family: "{font_family}";
+                font-size: 10pt;
+                padding: 3px;
+                background-color: transparent; /* De label trong suot tren inputFrame */
+            }}
+            QLineEdit, QSpinBox {{
+                background-color: {input_bg_color};
+                color: {text_color};
+                border: 1.5px solid {input_border_color}; /* Vien day hon */
+                border-radius: 8px;
+                padding: 9px 12px; /* Tang padding */
+                font-family: "{font_family}";
+                font-size: 10pt;
+                min-height: 24px;
+            }}
+            QLineEdit:focus, QSpinBox:focus {{
+                border: 1.5px solid {input_focus_border_color};
+                background-color: {input_focus_bg_color};
+            }}
+            QLineEdit::placeholder {{
+                color: {subtext_color};
+            }}
+            QSpinBox::up-button, QSpinBox::down-button {{
+                subcontrol-origin: border;
+                subcontrol-position: right;
+                width: 20px; /* Tang rong */
+                border: 1.5px solid {input_border_color};
+                border-radius: 5px; /* Bo tron hon */
+                background-color: {button_bg_color};
+                margin: 2px 3px 2px 2px; 
+            }}
+            QSpinBox::up-button {{ top: 2px; height: 12px;}} 
+            QSpinBox::down-button {{ bottom: 2px; height: 12px;}}
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+                background-color: rgba(80, 83, 100, 0.9);
+            }}
+            QPushButton {{
+                color: {button_text_color};
+                background-color: {button_bg_color};
+                border: 1.5px solid {button_border_color};
+                padding: 11px 22px; /* Tang padding */
+                border-radius: 10px;
+                font-family: "{font_family}";
+                font-size: 10pt;
+                font-weight: bold;
+                min-width: 130px; /* Tang min-width */
+            }}
+            QPushButton#startButton {{
+                background-color: {start_button_bg_color};
+                border-color: {start_button_border_color};
+            }}
+            QPushButton#startButton:hover {{
+                background-color: {start_button_hover_bg};
+                border-color: rgb(255, 170, 170);
+            }}
+            QPushButton#startButton:pressed {{
+                background-color: {start_button_pressed_bg};
+            }}
+            QPushButton#stopButton:hover {{
+                background-color: {stop_button_hover_bg};
+                border-color: rgb(216, 191, 216);
+            }}
+            QPushButton#stopButton:pressed {{
+                background-color: {stop_button_pressed_bg};
+            }}
+            QPushButton:disabled {{
+                background-color: {disabled_bg_color};
+                color: {disabled_text_color};
+                border-color: {disabled_border_color};
+            }}
+            QLabel#statusLabel {{
+                color: {subtext_color};
+                background-color: {status_bg_color};
+                border: 1px solid {status_border_color};
+                border-radius: 8px;
+                padding: 12px; /* Tang padding */
+                font-size: 9pt;
+                margin-top: 12px;
+            }}
+            QMessageBox {{
+                 background-color: {msgbox_bg_color};
+                 font-family: "{font_family}";
+            }}
+            QMessageBox QLabel {{
+                color: {msgbox_text_color};
+                 font-size: 10pt;
+            }}
+             QMessageBox QPushButton {{
+                background-color: {msgbox_button_bg};
+                border-color: {msgbox_button_border};
+                color: {button_text_color};
+                padding: 8px 18px;
+                border-radius: 8px;
+                min-width: 80px;
+            }}
+            QMessageBox QPushButton:hover {{
+                background-color: {msgbox_button_hover_bg};
+            }}
         """
         self.setStyleSheet(qss)
 
+    # Cac phuong thuc con lai (init_hotkey_listener, toggle_typing_process, ...) giu nguyen nhu phien ban truoc
     def init_hotkey_listener(self):
         self.hotkey_listener_thread = QThread(self)
         self.hotkey_listener_worker = HotkeyListenerWorker(self.current_hotkey)
@@ -260,7 +395,6 @@ class AutoTyperWindow(QMainWindow):
         self.hotkey_listener_worker.hotkey_pressed_signal.connect(self.toggle_typing_process)
         self.hotkey_listener_thread.started.connect(self.hotkey_listener_worker.run)
         
-        # Dọn dẹp khi thread listener kết thúc (thường là khi app đóng)
         self.hotkey_listener_thread.finished.connect(self.hotkey_listener_worker.deleteLater)
         self.hotkey_listener_thread.finished.connect(self.hotkey_listener_thread.deleteLater)
         
@@ -268,14 +402,12 @@ class AutoTyperWindow(QMainWindow):
 
     @Slot()
     def toggle_typing_process(self):
-        # print(f"DEBUG: toggle_typing_process called. is_typing_active: {self.is_typing_active}") # DEBUG
         if self.is_typing_active:
             self.stop_typing_process()
         else:
             self.start_typing_process()
 
     def start_typing_process(self):
-        # print("DEBUG: start_typing_process called") # DEBUG
         if self.is_typing_active:
             return
 
@@ -287,17 +419,12 @@ class AutoTyperWindow(QMainWindow):
             QMessageBox.warning(self, "Thiếu thông tin", "Vui lòng nhập văn bản hoặc phím cần nhấn.")
             return
         
-        # Dọn worker/thread cũ nếu click start nhiều lần
         if self.autotyper_thread and self.autotyper_thread.isRunning():
-            # print("DEBUG: Previous autotyper_thread is running, requesting stop and quitting.") # DEBUG
             if self.autotyper_worker:
-                self.autotyper_worker.request_stop() # Yêu cầu worker dừng
-            self.autotyper_thread.quit() # Yêu cầu thread thoát
-            if not self.autotyper_thread.wait(300): # Chờ tối đa 300ms
-                # print("DEBUG: Previous autotyper_thread did not quit in time.") # DEBUG
-                # Nếu thread không dừng, có thể cần terminate, nhưng nên tránh
+                self.autotyper_worker.request_stop() 
+            self.autotyper_thread.quit() 
+            if not self.autotyper_thread.wait(300): 
                 pass
-        # Các đối tượng sẽ tự deleteLater khi signal finished được emit
 
         self.is_typing_active = True
         self.btn_start.setEnabled(False)
@@ -313,39 +440,29 @@ class AutoTyperWindow(QMainWindow):
         self.autotyper_worker.update_status_signal.connect(self.update_status_label)
         self.autotyper_worker.error_signal.connect(self.show_error_message_box)
         
-        # Kết nối signal hoàn thành của worker
         self.autotyper_worker.typing_finished_signal.connect(self.handle_worker_really_finished)
         self.autotyper_worker.typing_finished_signal.connect(self.autotyper_worker.deleteLater) 
         
         self.autotyper_thread.started.connect(self.autotyper_worker.run)
-        # Kết nối signal hoàn thành của thread
         self.autotyper_thread.finished.connect(self.handle_thread_really_finished)
         self.autotyper_thread.finished.connect(self.autotyper_thread.deleteLater)
         
         self.autotyper_thread.start()
-        # print("DEBUG: New autotyper_thread started.") # DEBUG
-
 
     @Slot()
     def stop_typing_process(self):
-        # print("DEBUG: stop_typing_process called") # DEBUG
         if not self.is_typing_active:
-            self._update_ui_stopped() # Đảm bảo UI đúng nếu có gọi thừa
+            self._update_ui_stopped() 
             return
 
         if self.autotyper_worker:
             self.autotyper_worker.request_stop()
         else:
-            # Nếu không có worker mà is_typing_active = true -> có lỗi -> reset
-            # print("DEBUG: No worker but is_typing_active is True. Resetting.") # DEBUG
             self._reset_typing_state_and_ui()
             return
 
-        # Cập nhật UI sơ bộ
         self.btn_stop.setEnabled(False)
         self.status_label.setText("Đang yêu cầu dừng...")
-        # Các nút khác và is_typing_active sẽ được cập nhật trong handle_worker_really_finished
-
 
     @Slot(str)
     def update_status_label(self, message):
@@ -354,79 +471,48 @@ class AutoTyperWindow(QMainWindow):
     @Slot(str)
     def show_error_message_box(self, message):
         QMessageBox.critical(self, "Lỗi AutoTyper", message)
-        # worker.typing_finished_signal sẽ được emit từ finally block của worker.run()
-        # nên handle_worker_really_finished sẽ được gọi.
 
     def _update_ui_stopped(self):
-        # Hàm tiện ích để cập nhật UI về trạng thái dừng
         self.btn_start.setEnabled(True)
         self.btn_start.setText(f"Start ({self.current_hotkey_name})")
         self.btn_stop.setEnabled(False)
         self.status_label.setText(f"Đã dừng. Nhấn '{self.current_hotkey_name}' để bắt đầu.")
 
     def _reset_typing_state_and_ui(self):
-        # Hàm tiện ích để reset cả trạng thái logic và UI
         self.is_typing_active = False
         self._update_ui_stopped()
         if self.autotyper_thread and self.autotyper_thread.isRunning():
             self.autotyper_thread.quit()
-            # Thread sẽ tự deleteLater
-
 
     @Slot()
     def handle_worker_really_finished(self):
-        # Được gọi KHI worker THỰC SỰ xong việc hoặc bị stop bởi request_stop
-        # print(f"DEBUG: handle_worker_really_finished called. Current is_typing_active: {self.is_typing_active}") # DEBUG
-        
-        # Đặt lại trạng thái logic và cập nhật UI
         self._reset_typing_state_and_ui()
-        
-        # Worker đã emit typing_finished, nó sẽ được deleteLater do kết nối signal.
-        # Yêu cầu thread thoát, nó sẽ emit finished và tự deleteLater.
         if self.autotyper_thread and self.autotyper_thread.isRunning():
-            # print("DEBUG: Requesting autotyper_thread to quit.") # DEBUG
             self.autotyper_thread.quit() 
-
 
     @Slot()
     def handle_thread_really_finished(self):
-        # Được gọi KHI QThread của autotyper THỰC SỰ kết thúc.
-        # print("DEBUG: handle_thread_really_finished called.") # DEBUG
-        
-        # Worker (nếu còn) và Thread đã được deleteLater do kết nối signal.
-        # Chỉ cần dọn dẹp tham chiếu Python.
         self.autotyper_worker = None 
         self.autotyper_thread = None 
-
-        # Đảm bảo UI cuối cùng là đúng, phòng trường hợp handle_worker_really_finished chưa kịp cập nhật
-        # hoặc trạng thái is_typing_active không nhất quán.
-        if self.is_typing_active: # Nếu vì lý do nào đó, is_typing_active vẫn là True
-             # print("DEBUG: is_typing_active was still True in handle_thread_really_finished. Resetting.") # DEBUG
+        if self.is_typing_active: 
              self._reset_typing_state_and_ui()
-        else: # Nếu is_typing_active đã là False, chỉ cập nhật lại status text cho chắc
+        else: 
             self.status_label.setText(f"Đã dừng (hoàn toàn). Nhấn '{self.current_hotkey_name}' để bắt đầu.")
 
-
     def closeEvent(self, event):
-        # print("DEBUG: closeEvent called.") #DEBUG
-        # Dừng worker trước
         if self.autotyper_worker:
             self.autotyper_worker.request_stop() 
         
-        # Sau đó dừng thread của worker
         if self.autotyper_thread and self.autotyper_thread.isRunning():
             self.autotyper_thread.quit()
-            if not self.autotyper_thread.wait(200): # Chờ một chút
-                # print("DEBUG: Autotyper thread did not quit in time during closeEvent.") # DEBUG
+            if not self.autotyper_thread.wait(200):
                 pass
 
-        # Dừng listener
         if self.hotkey_listener_worker:
             self.hotkey_listener_worker.request_stop()
         if self.hotkey_listener_thread and self.hotkey_listener_thread.isRunning():
             self.hotkey_listener_thread.quit()
             if not self.hotkey_listener_thread.wait(200):
-                # print("DEBUG: Hotkey listener thread did not quit in time during closeEvent.") #DEBUG
                 pass
             
         event.accept()
