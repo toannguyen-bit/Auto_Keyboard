@@ -95,6 +95,10 @@ class AutoTyperWindow(QMainWindow):
         self.background_image_filename = "stellar.jpg"
         self.background_image_path = os.path.join(self.base_path, "assets", self.background_image_filename).replace("\\", "/")
 
+        # Dat icon cho cua so
+        app_icon_path = os.path.join(self.base_path, "assets", "icon.ico")
+        if os.path.exists(app_icon_path):
+            self.setWindowIcon(QIcon(app_icon_path))
         
         Translations.set_language(Translations.LANG_VI)
 
