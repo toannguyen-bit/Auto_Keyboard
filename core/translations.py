@@ -303,12 +303,22 @@ class Translations:
             LANG_EN: "Delay (ms)",
             LANG_JA: "遅延 (ミリ秒)"
         },
-        "action_press": {
+        "action_press": { # Dung boi worker cu, se duoc thay the
             LANG_VI: "Nhấn",
             LANG_EN: "Press",
             LANG_JA: "押す"
         },
-        "action_release": {
+        "action_release": { # Dung boi worker cu, se duoc thay the
+            LANG_VI: "Thả",
+            LANG_EN: "Release",
+            LANG_JA: "離す"
+        },
+        "action_press_display": { # Cho table display, canonical la "press"
+            LANG_VI: "Nhấn",
+            LANG_EN: "Press",
+            LANG_JA: "押す"
+        },
+        "action_release_display": { # Cho table display, canonical la "release"
             LANG_VI: "Thả",
             LANG_EN: "Release",
             LANG_JA: "離す"
@@ -337,9 +347,25 @@ class Translations:
             LANG_VI: "Trạng thái ghi/phát.",
             LANG_EN: "Recorder/Player status.",
             LANG_JA: "録画/再生ステータス。"
+        },
+        # --- Config save/load messages (for console logging) ---
+        "config_file_not_found": { # filepath
+            LANG_VI: "INFO: Không tìm thấy file cài đặt ({filepath}). Sử dụng cài đặt mặc định.",
+            LANG_EN: "INFO: Settings file not found ({filepath}). Using default settings.",
+            LANG_JA: "INFO: 設定ファイルが見つかりません ({filepath})。デフォルト設定を使用します。"
+        },
+        "config_loaded_error": { # filepath, error
+            LANG_VI: "WARNING: Lỗi khi tải cài đặt từ '{filepath}': {error}. Sử dụng cài đặt mặc định.",
+            LANG_EN: "WARNING: Error loading settings from '{filepath}': {error}. Using default settings.",
+            LANG_JA: "WARNING: '{filepath}' から設定を読み込む際にエラーが発生しました: {error}。デフォルト設定を使用します。"
+        },
+        "config_saved_error": { # filepath, error
+            LANG_VI: "ERROR: Lỗi khi lưu cài đặt vào '{filepath}': {error}",
+            LANG_EN: "ERROR: Error saving settings to '{filepath}': {error}",
+            LANG_JA: "ERROR: '{filepath}' への設定保存中にエラーが発生しました: {error}"
         }
     }
-    current_lang = LANG_VI 
+    current_lang = LANG_VI
 
     @classmethod
     def set_language(cls, lang_code): # Dat ngon ngu
