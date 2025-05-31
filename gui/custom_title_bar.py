@@ -7,8 +7,8 @@ from core.translations import Translations
 
 class CustomTitleBar(QWidget):
     language_changed_signal = Signal(str) # Signal de thong bao thay doi NN
-    # Them signal de chuyen che do
-    toggle_advanced_mode_signal = Signal(bool) # True for advanced, False for autotyper
+
+    toggle_advanced_mode_signal = Signal(bool)
 
     def __init__(self, parent=None, current_lang_code=Translations.LANG_VI):
         super().__init__(parent)

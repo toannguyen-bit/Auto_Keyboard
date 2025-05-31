@@ -1,7 +1,7 @@
 # gui/main_window.py
 import sys
 import os
-import json # Them json
+import json 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QMessageBox, QFormLayout,
@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QAbstractItemView, QStackedLayout
 )
 from PySide6.QtCore import Qt, Signal, QObject, QThread, Slot, QPoint, QSize, QRect
-from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent, QKeyEvent, QScreen # them QScreen
-from pynput.keyboard import Key as PynputKey, KeyCode # Them KeyCode
+from PySide6.QtGui import QFont, QPixmap, QIcon, QMouseEvent, QKeyEvent, QScreen
+from pynput.keyboard import Key as PynputKey, KeyCode 
 
 from core.translations import Translations
 from core.workers import (AutoTyperWorker, HotkeyListenerWorker, SingleKeyListenerWorker,
