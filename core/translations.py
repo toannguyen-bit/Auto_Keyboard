@@ -123,9 +123,9 @@ class Translations:
             LANG_JA: "停止を要求中..."
         },
         "msgbox_autotyper_error_title": {
-            LANG_VI: "Lỗi AutoTyper",
-            LANG_EN: "AutoTyper Error",
-            LANG_JA: "AutoTyper エラー"
+            LANG_VI: "Lỗi AutoTyper/Player", # Thay doi de dung chung
+            LANG_EN: "AutoTyper/Player Error",
+            LANG_JA: "AutoTyper/Player エラー"
         },
         "status_stopped": { # hotkey_name
             LANG_VI: "Đã dừng. Nhấn '{hotkey_name}' để bắt đầu.",
@@ -277,6 +277,11 @@ class Translations:
             LANG_VI: "Đã dừng phát. Nhấn '{hotkey_name}' để phát lại.",
             LANG_EN: "Playback stopped. Press '{hotkey_name}' to play again.",
             LANG_JA: "再生停止。'{hotkey_name}' を押して再再生。"
+        },
+        "status_player_error": { # hotkey_name. Them moi
+            LANG_VI: "Lỗi phát lại! Nhấn '{hotkey_name}' để thử lại.",
+            LANG_EN: "Playback error! Press '{hotkey_name}' to retry.",
+            LANG_JA: "再生エラー！'{hotkey_name}' を押して再試行してください。"
         },
         "status_player_ready": { # hotkey_name
             LANG_VI: "Sẵn sàng phát. Nhấn '{hotkey_name}' để phát.",

@@ -1,6 +1,6 @@
 # core/workers.py
 import time
-from PySide6.QtCore import QObject, Signal, Slot, QThread # Bo QTimer khoi import nay
+from PySide6.QtCore import QObject, Signal, Slot, QThread 
 from pynput.keyboard import Controller as PynputController, Listener as PynputListener, Key as PynputKey
 from .translations import Translations 
 
@@ -46,13 +46,22 @@ class AutoTyperWorker(QObject):
         self._is_running_request = True
     @Slot()
     def run(self):
+        error_emitted = False # Flag theo doi loi
         try:
-            if not self.text_to_type: self.error_signal.emit(Translations.get("worker_empty_text_error")); return
-            if self.interval_s <= 0: self.error_signal.emit(Translations.get("worker_invalid_interval_error")); return
-            if self.repetitions < 0: self.error_signal.emit(Translations.get("worker_invalid_repetitions_error")); return
+            if not self.text_to_type: 
+                self.error_signal.emit(Translations.get("worker_empty_text_error"))
+                error_emitted = True; return
+            if self.interval_s <= 0: 
+                self.error_signal.emit(Translations.get("worker_invalid_interval_error"))
+                error_emitted = True; return
+            if self.repetitions < 0: 
+                self.error_signal.emit(Translations.get("worker_invalid_repetitions_error"))
+                error_emitted = True; return
+            
             count = 0; initial_delay = 0.75; start_time = time.perf_counter()
             while time.perf_counter() - start_time < initial_delay:
-                if not self._is_running_request: self.typing_finished_signal.emit(); return # Ket thuc som
+                if not self._is_running_request: 
+                    return # Finally se emit typing_finished_signal
                 time.sleep(0.05)
             
             while self._is_running_request:
@@ -68,10 +77,14 @@ class AutoTyperWorker(QObject):
                 sleep_start_time=time.perf_counter()
                 while time.perf_counter()-sleep_start_time < self.interval_s:
                     if not self._is_running_request:break
-                    time.sleep(0.05) # Check ngat thuong xuyen hon
+                    time.sleep(0.05) 
                 if not self._is_running_request:break
-        except Exception as e: self.error_signal.emit(Translations.get("worker_runtime_error", error_message=str(e)))
-        finally: self.typing_finished_signal.emit() # Dam bao emit
+        except Exception as e: 
+            self.error_signal.emit(Translations.get("worker_runtime_error", error_message=str(e)))
+            error_emitted = True 
+        finally: 
+            if not error_emitted: 
+                self.typing_finished_signal.emit()
     @Slot()
     def request_stop(self): self._is_running_request=False
 
@@ -132,34 +145,23 @@ class SingleKeyListenerWorker(QObject):
     def activate_listener_for_hotkey_type(self, hotkey_type_to_set):
         # Kich hoat worker de bat dau lang nghe cho mot loai hotkey cu the
         if self._is_actively_listening_for_key: 
-            # Neu dang lang nghe roi, co the la mot loi logic hoac request chong cheo
-            # print(f"SKLW: Warning - activate called for {hotkey_type_to_set} while already listening for {self._current_hotkey_type_being_set}")
             return 
         self._current_hotkey_type_being_set = hotkey_type_to_set
         self._is_actively_listening_for_key = True
-        # print(f"SKLW: Activated for hotkey_type {self._current_hotkey_type_being_set}")
-
+        
     @Slot()
     def cancel_current_listening_operation(self):
-        # Huy thao tac lang nghe hien tai (vd: nguoi dung nhan lai nut "Dang nhan phim...")
-        # print(f"SKLW: Cancel listening requested for type {self._current_hotkey_type_being_set}")
-        if self._is_actively_listening_for_key: # Chi huy neu dang active
-            self._is_actively_listening_for_key = False # Quan trong: set flag truoc
+        if self._is_actively_listening_for_key: 
+            self._is_actively_listening_for_key = False 
             if self._pynput_listener_instance and self._pynput_listener_instance.is_alive():
                 try:
-                    # print("SKLW: Stopping pynput listener instance due to cancel.")
-                    self._pynput_listener_instance.stop() # Lenh nay se khien join() trong run() ket thuc
-                except Exception: # as e:
-                    # print(f"SKLW: Error stopping pynput listener on cancel: {e}")
+                    self._pynput_listener_instance.stop() 
+                except Exception: 
                     pass
-            # Khong emit listener_operation_finished_signal o day,
-            # no se duoc emit tu `finally` block trong `run()` khi pynput_listener_instance.join() ket thuc.
     
     def _on_press_capture_key(self, key_pressed):
-        # Callback cho pynput listener, duoc goi khi co phim duoc nhan
-        # print(f"SKLW: Key pressed: {key_pressed}, _is_actively_listening_for_key: {self._is_actively_listening_for_key}")
-        if not self._is_actively_listening_for_key: # Neu khong con active (vi du: da bi cancel)
-            return False # Dung pynput listener
+        if not self._is_actively_listening_for_key: 
+            return False 
 
         try:
             key_name_str = get_pynput_key_display_name(key_pressed)
@@ -170,51 +172,37 @@ class SingleKeyListenerWorker(QObject):
         except Exception as e:
             self.error_signal.emit(self._current_hotkey_type_being_set, Translations.get("msgbox_error_set_hotkey_text", error_message=str(e)))
         finally:
-            self._is_actively_listening_for_key = False # Da xu ly xong, danh dau la khong con lang nghe
-            # print("SKLW: _on_press_capture_key finished, _is_actively_listening_for_key set to False. Returning False to stop pynput listener.")
-            return False # Quan trong: tra ve False de pynput listener nay dung lai sau khi bat 1 phim
+            self._is_actively_listening_for_key = False 
+            return False 
 
     @Slot()
     def run(self):
-        # Vong lap chinh cua QThread worker
-        # print("SKLW: Worker run() loop started.")
         while self._keep_worker_thread_running:
             if self._is_actively_listening_for_key:
-                # Neu duoc kich hoat, bat dau PynputListener de bat 1 phim
-                # print(f"SKLW: Starting pynput listener for hotkey_type {self._current_hotkey_type_being_set}")
-                active_hotkey_type_at_start = self._current_hotkey_type_being_set # Luu lai de emit dung type
+                active_hotkey_type_at_start = self._current_hotkey_type_being_set 
                 try:
                     self._pynput_listener_instance = PynputListener(on_press=self._on_press_capture_key, suppress=False)
                     self._pynput_listener_instance.start()
-                    self._pynput_listener_instance.join() # Ham nay se block cho den khi _on_press_capture_key tra ve False hoac listener.stop() duoc goi
-                    # print("SKLW: Pynput listener joined (pynput listener has stopped).")
+                    self._pynput_listener_instance.join() 
                 except Exception as e:
-                    # print(f"SKLW: Error starting/running pynput listener: {e}")
-                    if self._is_actively_listening_for_key : # Neu van con active (nghia la loi xay ra truoc khi bat phim/cancel)
+                    if self._is_actively_listening_for_key : 
                         self.error_signal.emit(active_hotkey_type_at_start, Translations.get("msgbox_error_set_hotkey_text", error_message=f"Lỗi bộ lắng nghe: {str(e)}"))
-                        self._is_actively_listening_for_key = False # Reset flag
+                        self._is_actively_listening_for_key = False 
                 finally:
-                    # Du thanh cong, loi hay bi cancel, pynput listener da ket thuc o day
-                    # print(f"SKLW: Pynput listener finished for type {active_hotkey_type_at_start}. Emitting listener_operation_finished_signal.")
-                    self._is_actively_listening_for_key = False # Dam bao da reset
-                    self._pynput_listener_instance = None # Xoa instance
-                    self.listener_operation_finished_signal.emit(active_hotkey_type_at_start) # Bao cho main_window
+                    self._is_actively_listening_for_key = False 
+                    self._pynput_listener_instance = None 
+                    self.listener_operation_finished_signal.emit(active_hotkey_type_at_start) 
             else:
-                # Neu khong active, cho mot chut de khong lam nong CPU
                 QThread.msleep(50) 
-        # print("SKLW: Worker run() loop ended because _keep_worker_thread_running is False.")
 
     @Slot()
-    def request_stop_worker_thread(self): # Goi khi dong ung dung de ket thuc thread worker nay
-        # print("SKLW: request_stop_worker_thread called.")
-        self._keep_worker_thread_running = False # Dung vong lap run()
-        self._is_actively_listening_for_key = False # Ngung moi hoat dong lang nghe con
+    def request_stop_worker_thread(self): 
+        self._keep_worker_thread_running = False 
+        self._is_actively_listening_for_key = False 
         if self._pynput_listener_instance and self._pynput_listener_instance.is_alive():
             try:
-                # print("SKLW: Stopping pynput listener instance due to request_stop_worker_thread.")
                 self._pynput_listener_instance.stop()
-            except Exception: # as e:
-                # print(f"SKLW: Error stopping pynput listener on request_stop_worker_thread: {e}")
+            except Exception: 
                 pass
         self._pynput_listener_instance = None
 
@@ -230,10 +218,10 @@ class KeyboardRecorderWorker(QObject):
         self.start_record_hotkey = start_record_hotkey 
         self.stop_record_hotkey_name = stop_record_hotkey_name 
         self._listener = None
-        self._is_recording = False # Se duoc set True trong _start_actual_recording
+        self._is_recording = False 
         self._stop_requested = False
         self._last_event_time = None
-        self.countdown_duration = 3 # So giay dem nguoc
+        self.countdown_duration = 3 
 
     def _start_actual_recording(self):
         self._is_recording = True
@@ -246,8 +234,6 @@ class KeyboardRecorderWorker(QObject):
             delay_ms = (current_time - self._last_event_time) * 1000 if self._last_event_time else 0
             self._last_event_time = current_time
             key_name = get_pynput_key_display_name(key)
-            # Chi ghi neu khong phai la hotkey bat dau ghi (neu can, nhung thuong da qua roi)
-            # Va khong phai la hotkey dung ghi (se dc xu ly boi request_stop)
             self.key_event_recorded.emit(key, key_name, Translations.get("action_press"), delay_ms)
             return not self._stop_requested
 
@@ -264,53 +250,35 @@ class KeyboardRecorderWorker(QObject):
         try:
             self._listener = PynputListener(on_press=on_press, on_release=on_release, suppress=False) 
             self._listener.start()
-            # print("KeyboardRecorderWorker: PynputListener started for actual recording.")
             self._listener.join()
-            # print("KeyboardRecorderWorker: PynputListener joined (finished).")
-        except Exception as e:
-            # print(f"Recorder listener error: {e}")
+        except Exception:
             pass
         finally:
-            # print("KeyboardRecorderWorker: _start_actual_recording finally block. Emitting recording_finished.")
             self._is_recording = False 
-            self.recording_finished.emit()
+            self.recording_finished.emit() # Dam bao emit ngay ca khi co loi listener
 
     @Slot()
     def run(self):
-        # Thuc hien dem nguoc
-        # print(f"KeyboardRecorderWorker: run - starting countdown ({self.countdown_duration}s). Stop requested: {self._stop_requested}")
         for i in range(self.countdown_duration, 0, -1):
             if self._stop_requested:
-                # print("KeyboardRecorderWorker: Countdown interrupted by request_stop.")
-                self.recording_finished.emit() # Emit finished neu bi huy trong luc dem nguoc
+                self.recording_finished.emit() 
                 return
             self.recording_status_update.emit(Translations.get("status_recorder_countdown", seconds=i))
             time.sleep(1)
         
-        if self._stop_requested: # Kiem tra lai sau khi sleep cuoi cung
-            # print("KeyboardRecorderWorker: Countdown finished but stop was requested. Emitting finished.")
+        if self._stop_requested: 
             self.recording_finished.emit()
             return
-
-        # print("KeyboardRecorderWorker: Countdown finished. Starting actual recording.")
         self._start_actual_recording()
-        # print("KeyboardRecorderWorker: run - finished _start_actual_recording.")
-
 
     @Slot()
     def request_stop(self):
-        # print("KeyboardRecorderWorker: request_stop called.")
         self._stop_requested = True
-        
         if self._listener and self._listener.is_alive():
-            # print("KeyboardRecorderWorker: Calling PynputListener.stop()")
             try:
-                self._listener.stop() # Day la cach dung cho pynput
-            except Exception as e:
-                # print(f"Error stopping listener in request_stop: {e}")
+                self._listener.stop() 
+            except Exception:
                 pass
-        # else:
-            # print("KeyboardRecorderWorker: Listener not active or None in request_stop.")
 
 
 # --- Worker phát lại thao tác bàn phím ---
@@ -329,18 +297,21 @@ class RecordedPlayerWorker(QObject):
 
     @Slot()
     def run(self):
+        error_emitted = False # Flag theo doi loi
         try:
             if not self.recorded_events:
                 self.error_signal.emit(Translations.get("msgbox_no_recording_text"))
-                return
+                error_emitted = True
+                return 
 
             initial_delay = 0.5 
             start_time = time.perf_counter()
             while time.perf_counter() - start_time < initial_delay:
-                if not self._is_running_request: self.playing_finished_signal.emit(); return
+                if not self._is_running_request: 
+                    return # Finally se emit finished
                 time.sleep(0.05)
 
-            for i, (key_obj, action_str_en, delay_ms) in enumerate(self.recorded_events): # Mong doi action_str_en
+            for i, (key_obj, action_str_en, delay_ms) in enumerate(self.recorded_events): 
                 if not self._is_running_request: break
                 
                 if delay_ms > 0:
@@ -350,7 +321,6 @@ class RecordedPlayerWorker(QObject):
                         time.sleep(0.01) 
                 if not self._is_running_request: break
 
-                # Su dung truc tiep action_str_en da duoc chuan hoa
                 if action_str_en == Translations.get("action_press", lang=Translations.LANG_EN): 
                     self.keyboard_controller.press(key_obj)
                 elif action_str_en == Translations.get("action_release", lang=Translations.LANG_EN):
@@ -362,14 +332,12 @@ class RecordedPlayerWorker(QObject):
                                      total_actions=self.total_actions,
                                      hotkey_name=self.play_stop_hotkey_name)
                 )
-
-            if self._is_running_request: 
-                pass 
-
         except Exception as e:
             self.error_signal.emit(Translations.get("worker_runtime_error", error_message=str(e)))
+            error_emitted = True
         finally:
-            self.playing_finished_signal.emit()
+            if not error_emitted: 
+                self.playing_finished_signal.emit()
 
     @Slot()
     def request_stop(self):
