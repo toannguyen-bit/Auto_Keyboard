@@ -388,6 +388,82 @@ class Translations:
             LANG_VI: "ERROR: Lỗi khi lưu cài đặt vào '{filepath}': {error}",
             LANG_EN: "ERROR: Error saving settings to '{filepath}': {error}",
             LANG_JA: "ERROR: '{filepath}' への設定保存中にエラーが発生しました: {error}"
+        },
+        # --- New config buttons and messages ---
+        "button_load_config": {
+            LANG_VI: "Tải Cấu hình",
+            LANG_EN: "Load Config",
+            LANG_JA: "設定読込"
+        },
+        "button_save_config_as": { # "Luu cau hinh" -> "Luu thanh file moi"
+            LANG_VI: "Lưu dạng...",
+            LANG_EN: "Save As...",
+            LANG_JA: "名前を付けて保存..."
+        },
+        "button_save_current_config": {
+            LANG_VI: "Lưu Hiện tại",
+            LANG_EN: "Save Current",
+            LANG_JA: "現設定保存"
+        },
+        "msgbox_load_config_title": {
+            LANG_VI: "Tải Cấu hình",
+            LANG_EN: "Load Configuration",
+            LANG_JA: "設定の読み込み"
+        },
+        "msgbox_save_config_as_title": {
+            LANG_VI: "Lưu Cấu hình Dạng...",
+            LANG_EN: "Save Configuration As...",
+            LANG_JA: "名前を付けて設定を保存"
+        },
+         "msgbox_save_current_config_title": {
+            LANG_VI: "Lưu Cấu hình Hiện tại",
+            LANG_EN: "Save Current Configuration",
+            LANG_JA: "現在の設定を保存"
+        },
+        "msgbox_load_success_title": {
+            LANG_VI: "Tải Thành công",
+            LANG_EN: "Load Successful",
+            LANG_JA: "読み込み成功"
+        },
+        "msgbox_load_success_text": { # filename
+            LANG_VI: "Cấu hình '{filename}' đã được tải thành công.",
+            LANG_EN: "Configuration '{filename}' loaded successfully.",
+            LANG_JA: "設定 '{filename}' が正常に読み込まれました。"
+        },
+        "msgbox_load_fail_title": {
+            LANG_VI: "Tải Thất bại",
+            LANG_EN: "Load Failed",
+            LANG_JA: "読み込み失敗"
+        },
+        "msgbox_load_fail_text": { # filename, error
+            LANG_VI: "Không thể tải cấu hình từ '{filename}': {error}",
+            LANG_EN: "Could not load configuration from '{filename}': {error}",
+            LANG_JA: "設定を '{filename}' から読み込めませんでした: {error}"
+        },
+        "msgbox_save_success_title": {
+            LANG_VI: "Lưu Thành công",
+            LANG_EN: "Save Successful",
+            LANG_JA: "保存成功"
+        },
+        "msgbox_save_success_text": { # filename
+            LANG_VI: "Cấu hình đã được lưu thành công vào '{filename}'.",
+            LANG_EN: "Configuration saved successfully to '{filename}'.",
+            LANG_JA: "設定が '{filename}' に正常に保存されました。"
+        },
+        "msgbox_save_fail_title": {
+            LANG_VI: "Lưu Thất bại",
+            LANG_EN: "Save Failed",
+            LANG_JA: "保存失敗"
+        },
+        "msgbox_save_fail_text": { # filename, error
+            LANG_VI: "Không thể lưu cấu hình vào '{filename}': {error}",
+            LANG_EN: "Could not save configuration to '{filename}': {error}",
+            LANG_JA: "設定を '{filename}' に保存できませんでした: {error}"
+        },
+        "file_dialog_json_filter": {
+            LANG_VI: "Tệp JSON (*.json)",
+            LANG_EN: "JSON Files (*.json)",
+            LANG_JA: "JSONファイル (*.json)"
         }
     }
     current_lang = LANG_VI
@@ -408,6 +484,5 @@ class Translations:
             raw_translation = translation_dict.get(cls.current_lang, translation_dict.get(cls.LANG_EN, key))
             return raw_translation.format(**kwargs) if kwargs else raw_translation
         except KeyError:
-            # Tra ve key neu ko tim thay, giup de debug
-            # print(f"Warning: Translation key '{key}' not found for lang '{cls.current_lang}'.")
+       
             return key

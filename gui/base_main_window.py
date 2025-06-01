@@ -3,7 +3,7 @@ import os
 import json
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QLabel, QPushButton, QMessageBox,
+    QLabel, QPushButton, QMessageBox, QFileDialog,
     QSizePolicy, QStackedWidget, QStackedLayout
 )
 from PySide6.QtCore import Qt, QThread, Slot, QPoint, QSize, QRect, QPropertyAnimation, QEasingCurve, QAbstractAnimation
@@ -26,7 +26,10 @@ class BaseMainWindow(QMainWindow):
     def __init__(self, base_path):
         super().__init__()
         self.base_path = base_path
-        self.config_path = os.path.join(self.base_path, CONFIG_FILE_NAME)
+        # self.config_path se duoc set/update khi load/save
+        self.default_config_path = os.path.join(self.base_path, CONFIG_FILE_NAME)
+        self.config_path = self.default_config_path # Ban dau tro den default
+
         self.background_image_filename = "stellar.jpg"
         self.background_image_path = os.path.join(self.base_path, "assets", self.background_image_filename).replace("\\", "/")
 
@@ -34,7 +37,7 @@ class BaseMainWindow(QMainWindow):
         if os.path.exists(app_icon_path):
             self.setWindowIcon(QIcon(app_icon_path))
 
-        Translations.set_language(Translations.LANG_VI)
+        Translations.set_language(Translations.LANG_VI) # Mac dinh, se load tu config sau
 
         self.setMinimumSize(700, 600)
         self.resize(850, 700)
@@ -57,17 +60,17 @@ class BaseMainWindow(QMainWindow):
         self._is_resizing = False; self._resize_edge = NO_EDGE
         self._resize_start_mouse_pos = QPoint(); self._resize_start_window_geometry = QRect()
 
-        self.countdown_overlay = None # Khoi tao o day
+        self.countdown_overlay = None 
 
         self._first_show_animation_done = False
         self._animation_is_closing_flag = False
         self.opacity_animation_open = None
         self.opacity_animation_close = None
 
-        self.init_base_ui_elements()
-        self.apply_styles()
+        self.init_base_ui_elements() # Tao UI truoc
+        self.apply_styles() # Ap dung style
 
-        self._retranslate_base_ui()
+        # _retranslate_base_ui se dc goi sau khi ngon ngu duoc load tu config
         self.setMouseTracking(True)
 
     def init_base_ui_elements(self):
@@ -76,8 +79,13 @@ class BaseMainWindow(QMainWindow):
         overall_layout = QVBoxLayout(self.main_container_widget); overall_layout.setContentsMargins(0,0,0,0); overall_layout.setSpacing(0)
 
         self.custom_title_bar = CustomTitleBar(self, current_lang_code=Translations.current_lang)
-        self.custom_title_bar.language_changed_signal.connect(self._handle_language_change)
+        self.custom_title_bar.language_changed_signal.connect(self._handle_language_change_from_combobox) # Doi ten signal handler
         self.custom_title_bar.toggle_advanced_mode_signal.connect(self._toggle_view_mode_slot)
+        # Connect new signals for config buttons
+        self.custom_title_bar.load_config_requested_signal.connect(self._handle_load_config_requested)
+        self.custom_title_bar.save_config_as_requested_signal.connect(self._handle_save_config_as_requested)
+        self.custom_title_bar.save_current_config_requested_signal.connect(self._handle_save_current_config_requested)
+
         overall_layout.addWidget(self.custom_title_bar)
 
         main_area_widget = QWidget(); main_area_layout = QVBoxLayout(main_area_widget); main_area_layout.setContentsMargins(0,0,0,0); main_area_layout.setSpacing(0)
@@ -97,26 +105,32 @@ class BaseMainWindow(QMainWindow):
 
     @Slot(bool)
     def _toggle_view_mode_slot(self, to_advanced_mode):
-        self.toggle_view_mode(to_advanced_mode, from_load=False)
+        # Giao cho lop con (AutoTyperWindow) xu ly logic chuyen view
+        if hasattr(self, 'toggle_view_mode'): # Ktra xem method co ton tai ko
+            self.toggle_view_mode(to_advanced_mode, from_load=False)
 
-    def toggle_view_mode(self, to_advanced_mode, from_load=False):
-        self.custom_title_bar.set_mode_button_state(to_advanced_mode)
-        if not from_load:
-            self._retranslate_base_ui()
 
     def _retranslate_base_ui(self):
+        # Chi dich lai cac thanh phan cua BaseMainWindow
         self.custom_title_bar.retranslate_ui_texts()
         if self.original_pixmap.isNull():
             if not hasattr(self, "_bg_error_logged") or self._bg_error_logged != Translations.current_lang:
                 print(Translations.get("error_loading_background_msg_console", path=self.background_image_path))
-                self._bg_error_logged = Translations.current_lang
+                self._bg_error_logged = Translations.current_lang # Tranh log lap lai
             self.background_label.setText(Translations.get("error_loading_background_ui"))
+        
+        # Lop con se goi retranslate cho cac page cua no
 
     @Slot(str)
-    def _handle_language_change(self, lang_code):
+    def _handle_language_change_from_combobox(self, lang_code):
         Translations.set_language(lang_code)
-        self._retranslate_base_ui()
-        self.apply_styles()
+        # Lop con (AutoTyperWindow) se goi _retranslate_ui_extended() de cap nhat toan bo
+        if hasattr(self, '_retranslate_ui_extended'):
+            self._retranslate_ui_extended()
+        else: # Fallback neu ko co method do
+            self._retranslate_base_ui()
+        self.apply_styles() # Font co the thay doi
+
 
     def apply_styles(self):
         font_family = "Segoe UI, Arial, sans-serif"
@@ -145,7 +159,8 @@ class BaseMainWindow(QMainWindow):
         record_button_bg = "rgba(200, 80, 80, 0.7)"; record_button_hover_bg = "rgba(220, 90, 90, 0.8)"; record_button_pressed_bg = "rgba(180, 70, 70, 0.6)";
         play_button_bg = "rgba(80, 150, 200, 0.7)"; play_button_hover_bg = "rgba(90, 170, 220, 0.8)"; play_button_pressed_bg = "rgba(70, 130, 180, 0.6)";
         clear_button_bg = "rgba(120, 120, 120, 0.7)"; clear_button_hover_bg = "rgba(140, 140, 140, 0.8)"; clear_button_pressed_bg = "rgba(100, 100, 100, 0.6)";
-        toggle_mode_button_padding = "5px 12px"; toggle_mode_button_font_size = "9pt";
+        toggle_mode_button_padding = "5px 10px"; toggle_mode_button_font_size = "9pt"; # Giam padding nut mode
+        config_button_padding = "4px 8px"; config_button_font_size = "8pt"; # Style cho nut config moi
 
         qss = f"""
             QMainWindow {{ background: transparent; }}
@@ -154,11 +169,21 @@ class BaseMainWindow(QMainWindow):
             QLabel#backgroundLabel {{ border-radius: 10px; }}
             QWidget#customTitleBar {{ background-color: {title_bar_bg}; border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom: 1px solid rgba(224, 218, 230, 0.1); }}
             QLabel#titleBarLabel {{ color: {title_bar_text_color}; font-family: "{font_family}"; font-size: 10pt; font-weight: bold; padding-left: 5px; background-color: transparent; }}
+            
+            QPushButton#configButton {{
+                background-color: {button_bg_color}; color: {button_text_color};
+                border: 1px solid {button_border_color}; border-radius: 5px; /* Giam radius */
+                padding: {config_button_padding}; font-family: "{font_family}"; font-size: {config_button_font_size};
+                min-width: 70px; /* Giam min-width */
+            }}
+            QPushButton#configButton:hover {{ background-color: {start_button_hover_bg}; border-color: {start_button_hover_border_color_val}; }}
+            QPushButton#configButton:pressed {{ background-color: {start_button_pressed_bg}; }}
+
             QPushButton#toggleModeButton {{
                 background-color: {button_bg_color}; color: {button_text_color};
                 border: 1px solid {button_border_color}; border-radius: 6px;
                 padding: {toggle_mode_button_padding}; font-family: "{font_family}"; font-size: {toggle_mode_button_font_size};
-                min-width: 80px;
+                min-width: 75px; /* Giam min-width */
             }}
             QPushButton#toggleModeButton:hover {{ background-color: {start_button_hover_bg}; }}
             QPushButton#toggleModeButton:checked {{ background-color: {start_button_bg_color}; }}
@@ -174,12 +199,12 @@ class BaseMainWindow(QMainWindow):
             QComboBox#languageComboBox {{
                 background-color: {combo_box_bg}; color: {text_color};
                 border: 1px solid {combo_box_border}; border-radius: 6px;
-                padding: 4px 8px;
+                padding: 4px 6px; /* Giam padding */
                 font-family: "{font_family}"; font-size: 9pt; min-height: 20px;
             }}
             QComboBox#languageComboBox:hover {{ border-color: {input_focus_border_color}; }}
             QComboBox#languageComboBox::drop-down {{
-                subcontrol-origin: padding; subcontrol-position: top right; width: 18px;
+                subcontrol-origin: padding; subcontrol-position: top right; width: 16px; /* Giam width */
                 border-left-width: 1px; border-left-color: {combo_box_border}; border-left-style: solid;
                 border-top-right-radius: 6px; border-bottom-right-radius: 6px;
             }}
@@ -308,8 +333,8 @@ class BaseMainWindow(QMainWindow):
 
             if not self.opacity_animation_open:
                 self.opacity_animation_open = QPropertyAnimation(self, b"windowOpacity", self)
-                self.opacity_animation_open.setDuration(480) # Tang duration
-                self.opacity_animation_open.setEasingCurve(QEasingCurve.Type.InOutSine) # Easing moi
+                self.opacity_animation_open.setDuration(480) 
+                self.opacity_animation_open.setEasingCurve(QEasingCurve.Type.InOutSine) 
 
             self.setWindowOpacity(0.0)
             self.opacity_animation_open.setStartValue(0.0)
@@ -335,12 +360,20 @@ class BaseMainWindow(QMainWindow):
                 self._is_resizing = True; self._is_dragging = False
                 self._resize_start_mouse_pos = global_pos; self._resize_start_window_geometry = self.geometry()
                 event.accept(); return
+            
+            interactive_widgets_on_title = (
+                self.custom_title_bar.findChildren(QPushButton) +
+                [self.custom_title_bar.lang_combo] # Them combobox vao list
+            )
+            # Loai bo nut title label khoi danh sach (neu no la QPushButton)
+            interactive_widgets_on_title = [w for w in interactive_widgets_on_title if w != self.custom_title_bar.title_label]
+
+
             is_on_interactive_title_widget = False
-            interactive_widgets_on_title = self.custom_title_bar.findChildren(QPushButton) + \
-                                           [self.custom_title_bar.lang_combo, self.custom_title_bar.btn_toggle_mode]
             for child_widget in interactive_widgets_on_title:
                 if child_widget.isVisible() and child_widget.geometry().contains(self.custom_title_bar.mapFromGlobal(global_pos)):
                     is_on_interactive_title_widget = True; break
+            
             if is_on_title_bar_geom and not is_on_interactive_title_widget:
                 self._is_dragging = True; self._is_resizing = False
                 self._drag_start_pos = global_pos - self.frameGeometry().topLeft()
@@ -358,13 +391,20 @@ class BaseMainWindow(QMainWindow):
                 if self._resize_edge & BOTTOM_EDGE: new_geom.setHeight(max(min_h, start_geom.height() + delta.y()))
                 self.setGeometry(new_geom); event.accept(); return
             elif self._is_dragging: self.move(event.globalPosition().toPoint() - self._drag_start_pos); event.accept(); return
+        
         if not (self._is_resizing or self._is_dragging):
             local_pos = event.position().toPoint(); current_hover_edge = self._get_current_resize_edge(local_pos)
+            
+            interactive_widgets_on_title = (
+                self.custom_title_bar.findChildren(QPushButton) +
+                [self.custom_title_bar.lang_combo]
+            )
+            interactive_widgets_on_title = [w for w in interactive_widgets_on_title if w != self.custom_title_bar.title_label]
+
             is_on_interactive_title_widget = False
-            interactive_widgets_on_title = self.custom_title_bar.findChildren(QPushButton) + \
-                                           [self.custom_title_bar.lang_combo, self.custom_title_bar.btn_toggle_mode]
             for child_widget in interactive_widgets_on_title:
                 if child_widget.isVisible() and child_widget.geometry().contains(self.custom_title_bar.mapFromGlobal(event.globalPosition().toPoint())) : is_on_interactive_title_widget = True; break
+            
             if is_on_interactive_title_widget: self.unsetCursor()
             elif current_hover_edge == TOP_LEFT_CORNER or current_hover_edge == BOTTOM_RIGHT_CORNER: self.setCursor(Qt.SizeFDiagCursor)
             elif current_hover_edge == TOP_RIGHT_CORNER or current_hover_edge == BOTTOM_LEFT_CORNER: self.setCursor(Qt.SizeBDiagCursor)
@@ -413,45 +453,96 @@ class BaseMainWindow(QMainWindow):
         except (AttributeError, Exception): return None
         return None
 
-    def _load_settings(self):
+    # --- Config loading and saving (base methods) ---
+    def _read_settings_from_file(self, filepath):
         try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r', encoding='utf-8') as f:
+            if os.path.exists(filepath):
+                with open(filepath, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
-                lang_code = settings.get("language", Translations.LANG_VI)
-                Translations.set_language(lang_code)
-                if hasattr(self, 'custom_title_bar'):
-                    cb_idx = self.custom_title_bar.lang_combo.findData(lang_code)
-                    if cb_idx != -1: self.custom_title_bar.lang_combo.setCurrentIndex(cb_idx)
-                geom_rect_array = settings.get("window_geometry")
-                if geom_rect_array: self.setGeometry(QRect(*geom_rect_array))
-                if settings.get("window_maximized", False): self.showMaximized()
-
                 return settings
             else:
-                print(Translations.get("config_file_not_found", filepath=self.config_path))
+                print(Translations.get("config_file_not_found", filepath=filepath))
         except Exception as e:
-            print(Translations.get("config_loaded_error", filepath=self.config_path, error=str(e)))
-        return {}
+            print(Translations.get("config_loaded_error", filepath=filepath, error=str(e)))
+            QMessageBox.critical(self, Translations.get("msgbox_load_fail_title"),
+                                 Translations.get("msgbox_load_fail_text", filename=os.path.basename(filepath), error=str(e)))
+        return None
 
-    def _save_settings(self, settings_dict):
+    def _apply_base_window_settings(self, settings_data):
+        if not settings_data: return
+
+        lang_code = settings_data.get("language", Translations.LANG_VI)
+        Translations.set_language(lang_code)
+        if hasattr(self, 'custom_title_bar'): # Dam bao title bar da ton tai
+            cb_idx = self.custom_title_bar.lang_combo.findData(lang_code)
+            if cb_idx != -1: self.custom_title_bar.lang_combo.setCurrentIndex(cb_idx)
+        
+        geom_rect_array = settings_data.get("window_geometry")
+        if geom_rect_array: self.setGeometry(QRect(*geom_rect_array))
+        
+        if settings_data.get("window_maximized", False): self.showMaximized()
+        else: self.showNormal() # Phai showNormal de huy maximize
+
+
+    def _write_settings_to_file(self, filepath, settings_data):
         try:
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(settings_dict, f, indent=4, ensure_ascii=False)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(settings_data, f, indent=4, ensure_ascii=False)
+            return True
         except Exception as e:
-            print(Translations.get("config_saved_error", filepath=self.config_path, error=str(e)))
+            print(Translations.get("config_saved_error", filepath=filepath, error=str(e)))
+            QMessageBox.critical(self, Translations.get("msgbox_save_fail_title"),
+                                 Translations.get("msgbox_save_fail_text", filename=os.path.basename(filepath), error=str(e)))
+        return False
+
+    # --- Initial config loading at startup ---
+    def _load_initial_config(self): # Duoc goi boi AutoTyperWindow._load_settings_extended
+        settings_data = self._read_settings_from_file(self.config_path)
+        if settings_data:
+            self._apply_base_window_settings(settings_data)
+        else: # Neu ko load dc file config (vd: file ko ton tai, loi)
+            settings_data = {} # Dung dict rong de cac page load gia tri mac dinh
+            # Van ap dung ngon ngu mac dinh (VI) neu khong co gi duoc tai
+            Translations.set_language(Translations.LANG_VI)
+            if hasattr(self, 'custom_title_bar'):
+                 cb_idx = self.custom_title_bar.lang_combo.findData(Translations.LANG_VI)
+                 if cb_idx != -1: self.custom_title_bar.lang_combo.setCurrentIndex(cb_idx)
+
+        self._retranslate_base_ui() # Luon dich lai base UI sau khi xac dinh ngon ngu
+        return settings_data if settings_data is not None else {}
+
+
+    def _save_config_to_default_path(self, settings_data): # Duoc goi boi AutoTyperWindow._save_settings
+        self._write_settings_to_file(self.config_path, settings_data)
+
+    # --- Handlers for config button signals from CustomTitleBar (se duoc implement o lop con) ---
+    @Slot()
+    def _handle_load_config_requested(self):
+        # Se duoc override/implement day du o AutoTyperWindow
+        pass
+
+    @Slot()
+    def _handle_save_config_as_requested(self):
+        # Se duoc override/implement day du o AutoTyperWindow
+        pass
+    
+    @Slot()
+    def _handle_save_current_config_requested(self):
+        # Se duoc override/implement day du o AutoTyperWindow
+        pass
+
 
     def show_countdown_overlay(self, text):
         if not self.countdown_overlay:
-            self.countdown_overlay = CountdownOverlay(None) # Parent la None de thanh cua so rieng
+            self.countdown_overlay = CountdownOverlay(None) 
         self.countdown_overlay.setText(text)
-        self.countdown_overlay.show_animated() # Goi ham moi co animation
-        self.countdown_overlay.activateWindow() # Can de hien thi dung tren cung
+        self.countdown_overlay.show_animated() 
+        self.countdown_overlay.activateWindow() 
         self.countdown_overlay.raise_()
 
     def hide_countdown_overlay(self):
         if self.countdown_overlay and self.countdown_overlay.isVisible():
-            self.countdown_overlay.hide_animated() # Goi ham moi
+            self.countdown_overlay.hide_animated() 
 
 
     def closeEvent(self, event):
@@ -463,20 +554,20 @@ class BaseMainWindow(QMainWindow):
             self.single_key_listener_worker.request_stop_worker_thread()
         if self.single_key_listener_thread:
             self.single_key_listener_thread.quit()
-            if not self.single_key_listener_thread.wait(200): # Giam thoi gian cho
+            if not self.single_key_listener_thread.wait(200): 
                 self.single_key_listener_thread.terminate()
                 self.single_key_listener_thread.wait(50)
         self.single_key_listener_worker = None
         self.single_key_listener_thread = None
 
         if self.countdown_overlay:
-            self.countdown_overlay.close() # Dong overlay ngay, ko can anim
+            self.countdown_overlay.close() 
             self.countdown_overlay = None
 
         if not self.opacity_animation_close:
             self.opacity_animation_close = QPropertyAnimation(self, b"windowOpacity", self)
-            self.opacity_animation_close.setDuration(320) # Tang duration
-            self.opacity_animation_close.setEasingCurve(QEasingCurve.Type.InOutSine) # Easing moi
+            self.opacity_animation_close.setDuration(320) 
+            self.opacity_animation_close.setEasingCurve(QEasingCurve.Type.InOutSine) 
             self.opacity_animation_close.finished.connect(self._handle_close_animation_finished)
 
         if self.opacity_animation_close.state() == QAbstractAnimation.State.Running:
