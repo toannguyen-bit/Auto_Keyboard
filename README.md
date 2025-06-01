@@ -1,7 +1,15 @@
 # AutoTyper Poetic - Advanced Keyboard Automation ᓚᘏᗢ
 
+## Demo:
+- **AutoTyper:**
 
+![0601(2)](https://github.com/user-attachments/assets/ef176550-8ded-4f61-844e-f032655f10b5)
+  
+- **KeyBoard Recorder:**
 
+![0601(1)](https://github.com/user-attachments/assets/360559af-eb63-4160-b7d7-c50bbb783c36)
+   
+## Docs:
 <!-- Vietnamese -->
 <details>
 <summary>🇻🇳 Tiếng Việt</summary>
