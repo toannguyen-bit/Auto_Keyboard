@@ -11,8 +11,8 @@
 ---
 -   **Keyboard Recorder & Player Mode:**
     ![Keyboard Recorder Demo](https://github.com/user-attachments/assets/360559af-eb63-4160-b7d7-c50bbb783c36)
-
-## Tài liệu chi tiết
+---
+## DOCS:
 
 <!-- Vietnamese -->
 <details>
