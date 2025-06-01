@@ -1,6 +1,4 @@
-Tuyệt vời! Dưới đây là phiên bản README.md được cải tiến, tập trung vào sự chuyên nghiệp, rõ ràng và cấu trúc tốt hơn, đồng thời giữ lại các thông tin quan trọng bạn đã cung cấp.
 
----
 
 # AutoTyper Poetic - Advanced Keyboard Automation ᓚᘏᗢ
 
@@ -10,7 +8,7 @@ Tuyệt vời! Dưới đây là phiên bản README.md được cải tiến, t
 
 -   **AutoTyper Mode:**
     ![AutoTyper Demo](https://github.com/user-attachments/assets/ef176550-8ded-4f61-844e-f032655f10b5)
-
+---
 -   **Keyboard Recorder & Player Mode:**
     ![Keyboard Recorder Demo](https://github.com/user-attachments/assets/360559af-eb63-4160-b7d7-c50bbb783c36)
 
