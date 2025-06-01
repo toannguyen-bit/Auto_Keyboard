@@ -7,10 +7,14 @@
 ## Demo
 
 -   **AutoTyper Mode:**
+
 ![AutoTyper Demo](https://github.com/user-attachments/assets/ef176550-8ded-4f61-844e-f032655f10b5)
+
 ---
 -   **Keyboard Recorder & Player Mode:**
+
 ![Keyboard Recorder Demo](https://github.com/user-attachments/assets/360559af-eb63-4160-b7d7-c50bbb783c36)
+
 ---
 ## DOCS:
 
