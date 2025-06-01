@@ -15,7 +15,7 @@
 **LƯU Ý QUAN TRỌNG:**
 
 *   📜 **Tập tin cấu hình:** Cài đặt của người dùng (ngôn ngữ, kích thước cửa sổ, hotkey, macro đã ghi, v.v.) được lưu trong `autokeyboard_config.json` tại thư mục gốc của ứng dụng.
-*   🚀 **Script chạy nhanh:** Các tệp `run.bat` (Windows) và `run.sh` (Linux/macOS) được cung cấp để tự động hóa việc tạo môi trường ảo (nếu chưa có) và cài đặt các thư viện cần thiết.
+*   🚀 **Auto Setup:** Các tệp `run.bat` (Windows) và `run.sh` (Linux/macOS) được cung cấp để tự động hóa việc tạo môi trường ảo (nếu chưa có) và cài đặt các thư viện cần thiết.
 
 ## Tính năng
 
