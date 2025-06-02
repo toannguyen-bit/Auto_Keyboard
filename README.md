@@ -1,8 +1,6 @@
 
 
-# AutoTyper Poetic - Advanced Keyboard Automation ᓚᘏᗢ
-
-**AutoTyper Poetic** là một ứng dụng tự động hóa bàn phím mạnh mẽ và linh hoạt, được thiết kế để giúp bạn tiết kiệm thời gian và công sức bằng cách tự động hóa các tác vụ nhập liệu lặp đi lặp lại. Với giao diện trực quan, hỗ trợ đa ngôn ngữ và nhiều tính năng tùy chỉnh, AutoTyper Poetic là công cụ lý tưởng cho cả người dùng cơ bản và nâng cao.
+# AutoTyper - Advanced Keyboard Automation ᓚᘏᗢ
 
 ## Demo
 
